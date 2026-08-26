@@ -2,5 +2,5 @@ Plaintext
 
 streamlit
 yfinance
-pandas-ta
 pandas
+numpy
