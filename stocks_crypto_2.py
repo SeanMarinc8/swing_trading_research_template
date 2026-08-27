@@ -930,12 +930,6 @@ with col_ft_right:
 #based on what you are interested in (Personal, Rental, Vacation, Flip, Etc...)
 #add in specifics like taxes, schools, maintenance fees, and etc...
 # ---------------------------------------------------------
-# ---------------------------------------------------------
-# MAIN TABBED NAVIGATION (Stock | Crypto | Real Estate)
-# ---------------------------------------------------------
-tab_stocks, tab_crypto, tab_real_estate = st.tabs(
-    ["📊 Stock Scanner", "🪙 Crypto Scanner", "🏠 Real Estate Evaluation"]
-)
 
 # =========================================================
 # TAB 3: REAL ESTATE EVALUATION
