@@ -15,14 +15,7 @@ st.set_page_config(
     page_icon="📈",
 )
 
-# Base64 encoded logo string for seamless rendering across all platforms
-CMI_LOGO_BASE64 = """data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAAGACAYAAAC
-3m/5iAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAOxAAADsQBlSsOGwAAABl0RVh0U29mdHdhcmU
-AQWRvYmUgSW1hZ2VSZWFkeXH4uQgAAGSURBVHic7d13eFNV/gXwz203aTdptpSW3VJGykgLIipC
-2RVEBAERx4AigIigg46OqCPj6Pj9OTo4IeKI4Awi4IgoUhaVpUnb3XSTdu49v39I
-..."""  # Full SVG/PNG Base64 context initialized dynamically below
-
-# Custom CSS styling for visual enhancements
+# Custom CSS styling for visual enhancements and card layouts
 st.markdown(
     """
     <style>
@@ -34,44 +27,43 @@ st.markdown(
         border-bottom: 2px solid #00ACC1;
         margin-bottom: 20px;
     }
-    .cmi-logo-img {
-        max-height: 75px;
-        width: auto;
-    }
     .metric-card-good {
         background-color: #d4edda;
         border-left: 5px solid #28a745;
-        padding: 10px;
-        border-radius: 4px;
-        margin-bottom: 10px;
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 15px;
+        color: #155724;
     }
     .metric-card-avg {
         background-color: #fff3cd;
         border-left: 5px solid #ffc107;
-        padding: 10px;
-        border-radius: 4px;
-        margin-bottom: 10px;
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 15px;
+        color: #856404;
     }
     .metric-card-bad {
         background-color: #f8d7da;
         border-left: 5px solid #dc3545;
-        padding: 10px;
-        border-radius: 4px;
-        margin-bottom: 10px;
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 15px;
+        color: #721c24;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# Core Branding Markup Helper
+# Core Branding Vector Graphic Markup
 CMI_LOGO_SVG = """
-<div style="font-family: sans-serif; font-weight: 800; font-size: 32px; color: #111;">
-    <span style="font-size: 40px; font-weight: 900; letter-spacing: -1px;">CMI</span>
-    <span style="display:inline-block; width:12px; height:12px; background-color:#E91E63; margin-left:2px;"></span>
-    <span style="display:inline-block; width:12px; height:12px; background-color:#26A69A; margin-left:1px;"></span>
-    <span style="display:inline-block; width:12px; height:12px; background-color:#00ACC1; margin-left:1px;"></span>
-    <div style="font-size: 14px; font-weight: 700; letter-spacing: 3px; color: #333; margin-top:-8px;">
+<div style="font-family: sans-serif; font-weight: 800; font-size: 28px; color: #111; line-height: 1.1;">
+    <span style="font-size: 36px; font-weight: 900; letter-spacing: -1px;">CMI</span>
+    <span style="display:inline-block; width:10px; height:10px; background-color:#E91E63; margin-left:2px; vertical-align:top;"></span>
+    <span style="display:inline-block; width:10px; height:10px; background-color:#26A69A; margin-left:1px; vertical-align:top;"></span>
+    <span style="display:inline-block; width:10px; height:10px; background-color:#00ACC1; margin-left:1px; vertical-align:top;"></span>
+    <div style="font-size: 11px; font-weight: 700; letter-spacing: 2px; color: #333; margin-top: -2px;">
         CORE MARKET INTELLIGENCE
     </div>
 </div>
@@ -84,10 +76,8 @@ st.sidebar.markdown("---")
 # Render Main Page Branding Header
 col_header_left, col_header_right = st.columns([3, 1])
 with col_header_left:
-    st.title(" Institutional Trading & Predictive Analytics")
-    st.caption(
-        "Powered by **CMI (Core Market Intelligence)** Quantitative Engine"
-    )
+    st.title("📈 Institutional Trading & Predictive Analytics")
+    st.caption("Powered by **CMI (Core Market Intelligence)** Quantitative Engine")
 with col_header_right:
     st.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
 
@@ -237,58 +227,20 @@ def generate_predictive_model(df, forecast_days=10):
 
 
 # ---------------------------------------------------------
-# News Feed Helper with Built-In (GOOD) / (BAD) Sentiment Tagging
+# News Feed Helper with Sentiment Tagging
 # ---------------------------------------------------------
 def analyze_headline_sentiment(title):
     """Simple keyword sentiment tagger for financial headlines."""
     title_lower = title.lower()
     bullish_keywords = [
-        "beat",
-        "surged",
-        "surge",
-        "record",
-        "growth",
-        "soar",
-        "soared",
-        "jump",
-        "upgraded",
-        "upgrade",
-        "gain",
-        "gains",
-        "bull",
-        "bullish",
-        "profit",
-        "rally",
-        "highs",
-        "outperform",
-        "buy",
-        "expansion",
-        "partnership",
-        "success",
+        "beat", "surged", "surge", "record", "growth", "soar", "soared", "jump",
+        "upgraded", "upgrade", "gain", "gains", "bull", "bullish", "profit",
+        "rally", "highs", "outperform", "buy", "expansion", "partnership", "success"
     ]
     bearish_keywords = [
-        "miss",
-        "missed",
-        "drop",
-        "dropped",
-        "fall",
-        "fell",
-        "plunge",
-        "plunged",
-        "downgraded",
-        "downgrade",
-        "loss",
-        "losses",
-        "bear",
-        "bearish",
-        "lawsuit",
-        "investigation",
-        "decline",
-        "warning",
-        "slump",
-        "cuts",
-        "slash",
-        "probe",
+        "miss", "missed", "drop", "dropped", "fall", "fell", "plunge", "plunged",
+        "downgraded", "downgrade", "loss", "losses", "bear", "bearish", "lawsuit",
+        "investigation", "decline", "warning", "slump", "cuts", "slash", "probe"
     ]
 
     bull_count = sum(1 for word in bullish_keywords if word in title_lower)
@@ -353,7 +305,7 @@ def render_news_feed(ticker_obj, ticker_name):
 
 
 # ---------------------------------------------------------
-# Proven Trading Strategies Guide (Easy for Beginners)
+# Proven Trading Strategies Guide
 # ---------------------------------------------------------
 def render_trading_strategies_guide():
     with st.expander(
@@ -395,7 +347,6 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     prev = df.iloc[-2]
     fmt = "{:,.3f}" if asset_type == "Crypto" else "{:,.2f}"
 
-    # Generate Forecast Data first for inline execution modeling
     forecast_df, buy_target, sell_target, stop_loss, daily_vector = (
         generate_predictive_model(df)
     )
@@ -460,30 +411,26 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
         st.success(
             "🟢 **EXECUTIVE ACTION: BUY / ACCUMULATE NOW**\n\n"
             "**Why:** Strong confluence of bullish signals. Price is supported"
-            " by VWAP/20-SMA with positive MACD momentum and room for RSI"
-            " expansion."
+            " by VWAP/20-SMA with positive MACD momentum and room for RSI expansion."
         )
     elif bear_points >= 4:
         st.error(
             "🔴 **EXECUTIVE ACTION: SELL / TAKE PROFITS NOW**\n\n"
             "**Why:** Heavy overhead resistance detected. Asset is trading"
-            " below VWAP baseline with decelerating MACD momentum or overbought"
-            " RSI."
+            " below VWAP baseline with decelerating MACD momentum or overbought RSI."
         )
     else:
         st.warning(
-            "🟡 **EXECUTIVE ACTION: WAIT / HOLD (NO CLEAR EDGE RIGHT"
-            " NOW)**\n\n**Why:** Indicators show a tug-of-war between buyers"
-            " and sellers. Momentum is neutral or consolidating."
+            "🟡 **EXECUTIVE ACTION: WAIT / HOLD (NO CLEAR EDGE RIGHT NOW)**\n\n"
+            "**Why:** Indicators show a tug-of-war between buyers and sellers. Momentum is neutral or consolidating."
         )
 
     # -----------------------------------------------------
-    # Lean Direction Breakdown with Exact Target, Stop-Loss, & Risk %
+    # Extended Lean Direction Breakdown with Price Targets & Risk Metrics
     # -----------------------------------------------------
     lean_direction = "LONG (BUY)" if bull_points >= bear_points else "SHORT (SELL)"
     lean_color = "🟢" if "LONG" in lean_direction else "🔴"
 
-    # Price & Risk Calculations
     curr_price = latest["Close"]
     atr_val = latest["ATR"] if pd.notnull(latest["ATR"]) else curr_price * 0.03
 
@@ -491,29 +438,21 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
         entry_target = buy_target
         exit_target = sell_target
         sl_price = stop_loss
-        risk_pct = max(
-            0.1, abs((entry_target - sl_price) / entry_target) * 100
-        )
-        reward_pct = max(
-            0.1, abs((exit_target - entry_target) / entry_target) * 100
-        )
+        risk_pct = max(0.1, abs((entry_target - sl_price) / entry_target) * 100)
+        reward_pct = max(0.1, abs((exit_target - entry_target) / entry_target) * 100)
         sl_reason = (
             f"The stop-loss is placed at **${fmt.format(sl_price)}** (1.5x ATR below entry) "
-            f"to allow normal volatility fluctuations while protecting against a breakdown below the lower Bollinger Band (${fmt.format(latest['BB_Lower'])})."
+            f"to allow normal volatility fluctuations while protecting capital against a breakdown below the lower Bollinger Band (${fmt.format(latest['BB_Lower'])})."
         )
     else:
         entry_target = curr_price
         exit_target = buy_target
         sl_price = curr_price + (1.5 * atr_val)
-        risk_pct = max(
-            0.1, abs((sl_price - entry_target) / entry_target) * 100
-        )
-        reward_pct = max(
-            0.1, abs((entry_target - exit_target) / entry_target) * 100
-        )
+        risk_pct = max(0.1, abs((sl_price - entry_target) / entry_target) * 100)
+        reward_pct = max(0.1, abs((entry_target - exit_target) / entry_target) * 100)
         sl_reason = (
             f"The stop-loss is set at **${fmt.format(sl_price)}** (1.5x ATR above entry) "
-            f"to prevent significant losses if buyers push price back above institutional VWAP (${fmt.format(latest['VWAP'])})."
+            f"to limit losses if buyers push price back above institutional VWAP (${fmt.format(latest['VWAP'])})."
         )
 
     with st.container():
@@ -547,8 +486,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     st.line_chart(df[["RSI", "Overbought (70)", "Oversold (30)"]].dropna())
 
     st.subheader(
-        "MACD Momentum Acceleration (Green = Bullish Momentum | Red = Bearish"
-        " Momentum)"
+        "MACD Momentum Acceleration (Green = Bullish Momentum | Red = Bearish Momentum)"
     )
     macd_df = df[["MACD_Hist"]].reset_index()
     macd_df["Color"] = np.where(
@@ -600,7 +538,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     st.line_chart(forecast_df)
 
     # ---------------------------------------------------------
-    # Simplified Quantitative Analyst Desk
+    # Quantitative Analyst Desk
     # ---------------------------------------------------------
     st.markdown("---")
     st.header(f"📊 Quantitative Analyst Breakdown ({ticker_name})")
@@ -664,7 +602,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     """)
 
     # ---------------------------------------------------------
-    # Enhanced Visually Readable Financial Statements
+    # Enhanced Visual Financial Statements (Good/Average/Bad)
     # ---------------------------------------------------------
     st.markdown("---")
     st.header("📋 Financial Statements & Fundamental Overview")
@@ -675,30 +613,30 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
             income_stmt = ticker_obj.financials
             cash_flow = ticker_obj.cashflow
 
-            # Health Rating Metric Calculation
             rev_growth = info.get("revenueGrowth", 0) or 0
             profit_margin = info.get("profitMargins", 0) or 0
             debt_to_equity = info.get("debtToEquity", 100) or 100
 
+            # Evaluates growth & margins cleanly without syntax errors
             if rev_growth > 0.10 and profit_margin > 0.15:
                 health_grade = "GOOD 🟢"
                 card_class = "metric-card-good"
-                grade_reason = "Strong double-digit top-line growth combined with high profit margins."
-            elif rev_growth > 0 or profit_margin > 05:
+                grade_reason = "Strong double-digit top-line growth combined with robust profit margins."
+            elif rev_growth > 0 or profit_margin > 0.05:
                 health_grade = "AVERAGE 🟡"
                 card_class = "metric-card-avg"
-                grade_reason = "Moderate fundamental stability with stable margins but slower expansion."
+                grade_reason = "Moderate fundamental stability with steady margins but slower top-line expansion."
             else:
                 health_grade = "BAD 🔴"
                 card_class = "metric-card-bad"
-                grade_reason = "Declining revenues or squeezed margins indicating fundamental headwinds."
+                grade_reason = "Declining top-line growth or squeezed margins indicating fundamental headwinds."
 
             st.markdown(
                 f"""
             <div class="{card_class}">
-                <h3>Fundamental Rating: <strong>{health_grade}</strong></h3>
-                <p><strong>Executive Summary:</strong> {grade_reason}</p>
-                <ul>
+                <h3 style="margin:0;">Fundamental Rating: <strong>{health_grade}</strong></h3>
+                <p style="margin: 5px 0 10px 0;"><strong>Executive Summary:</strong> {grade_reason}</p>
+                <ul style="margin-bottom:0;">
                     <li><strong>YoY Revenue Growth:</strong> {rev_growth*100:.1f}%</li>
                     <li><strong>Profit Margin:</strong> {profit_margin*100:.1f}%</li>
                     <li><strong>Debt-to-Equity Ratio:</strong> {debt_to_equity:.1f}</li>
@@ -766,8 +704,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     else:
         st.info(
             "Cryptocurrencies do not publish corporate financial statements"
-            " (Income/Cash Flow). Valuation is based on network activity and unit"
-            " economics."
+            " (Income/Cash Flow). Valuation is based on network activity and unit economics."
         )
 
     # ---------------------------------------------------------
@@ -841,36 +778,19 @@ st.markdown("---")
 st.header("🎯 Live Quantitative Top Market Picks")
 st.caption(
     "Dynamically updated in real-time via automated quantitative screening"
-    " integrating live price action, volatility metrics (ATR), ATR-correlated"
-    " stop losses, and target execution parameters."
+    " integrating live price action, ATR volatility targets, stop losses, and risk ratios."
 )
 
 
 @st.cache_data(ttl=300)
 def fetch_live_quant_picks():
     long_tickers = [
-        "NVDA",
-        "META",
-        "PANW",
-        "SHOP",
-        "VLO",
-        "UBER",
-        "NOW",
-        "DINO",
-        "WMT",
-        "EPD",
+        "NVDA", "META", "PANW", "SHOP", "VLO",
+        "UBER", "NOW", "DINO", "WMT", "EPD"
     ]
     short_tickers = [
-        "HTZ",
-        "GRPN",
-        "SOUN",
-        "PLCE",
-        "AI",
-        "LCID",
-        "PCT",
-        "XRX",
-        "UPST",
-        "RXT",
+        "HTZ", "GRPN", "SOUN", "PLCE", "AI",
+        "LCID", "PCT", "XRX", "UPST", "RXT"
     ]
 
     long_results = []
@@ -972,13 +892,12 @@ with tab_short:
         hide_index=True,
     )
 
-# Footer
+# Footer Branding
 st.markdown("---")
 col_ft_left, col_ft_right = st.columns([4, 1])
 with col_ft_left:
     st.caption(
-        "© 2026 Core Market Intelligence (CMI). All Quantitative Models & Market"
-        " Data Streams."
+        "© 2026 Core Market Intelligence (CMI). All Quantitative Models & Market Data Streams."
     )
 with col_ft_right:
     st.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
