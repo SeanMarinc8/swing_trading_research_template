@@ -1,4 +1,5 @@
 from datetime import timedelta
+import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -8,16 +9,6 @@ st.set_page_config(
     page_title="Institutional Scanner & Predictive Engine", layout="wide"
 )
 st.title("📈 Institutional Trading & Predictive Analytics")
-
-# ---------------------------------------------------------
-# Plotly Chart Configuration (Disables Scroll-Zoom Hijack)
-# ---------------------------------------------------------
-plotly_config = {
-    "scrollZoom": False,
-    "displayModeBar": True,
-    "modeBarButtonsToAdd": ["zoomIn2d", "zoomOut2d", "resetScale2d"],
-    "displaylogo": False,
-}
 
 # ---------------------------------------------------------
 # Sidebar Controls & Expanded Cheat Sheet
@@ -279,45 +270,6 @@ def render_news_feed(ticker_obj, ticker_name):
 
 
 # ---------------------------------------------------------
-# Proven Trading Strategies Guide
-# ---------------------------------------------------------
-def render_trading_strategies_guide():
-    with st.expander(
-        "💡 Easy Proven Trading Strategies (How to use this dashboard)",
-        expanded=False,
-    ):
-        st.markdown("""
-        ### Strategy 1: The "Institutional VWAP Bounce" (Best for Trend Buyers)
-        * **Goal:** Buy high-quality stocks at a wholesale discount price when big institutional buyers step in.
-        * **How to Spot It:**
-            1. Look for the **Actionable Trade Recommendation** to show **LEAN BUY** or **BUY**.
-            2. Check the **Price Action vs. VWAP chart**. Wait until current price drops close to or touches the **VWAP line**.
-            3. Verify that **RVOL** is above `1.2x` (meaning big volume is present).
-            4. **Action:** Buy near VWAP. Place your Stop Loss slightly below the 50-day SMA.
-
-        ---
-
-        ### Strategy 2: The "RSI Bargain Hunter" (Best for Rebound Trades)
-        * **Goal:** Catch quick market bounces when a stock has been oversold and beaten down too hard.
-        * **How to Spot It:**
-            1. Check the **RSI Momentum chart**. Look for RSI dropping below **30** (Oversold).
-            2. Check the **Bollinger Bands**. Price should be near or below the lower band.
-            3. Look at the **News Feed**: If news is tagged 🟢 **(GOOD NEWS)** or ⚪ **(NEUTRAL)** while price is oversold, it signals an overreaction drop.
-            4. **Action:** Buy when RSI crosses back *above* 30. Use the **Optimal Buy Target** metric as your entry anchor.
-
-        ---
-
-        ### Strategy 3: The "Breakout Velocity" (Best for Momentum Traders)
-        * **Goal:** Ride fast moving stocks as momentum accelerates.
-        * **How to Spot It:**
-            1. Look at the **MACD Histogram**. The bars should be green and growing taller.
-            2. **RVOL** should be `> 1.5x` (heavy buying volume).
-            3. Price should be trading comfortably **above VWAP** and the **20-period SMA**.
-            4. **Action:** Ride the trend until price touches the upper **Bollinger Band** or the **Take Profit Target**, then lock in gains.
-        """)
-
-
-# ---------------------------------------------------------
 # Main UI Dashboard Renderer
 # ---------------------------------------------------------
 def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
@@ -325,7 +277,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     prev = df.iloc[-2]
     fmt = "{:,.3f}" if asset_type == "Crypto" else "{:,.2f}"
 
-    # Top Metrics Row
+    # Metrics Row
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric(
         "Current Price",
@@ -395,146 +347,43 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
             "**Why:** Indicators are showing a tug-of-war between buyers and sellers. Momentum is neutral or consolidating."
         )
 
-        lean_direction = "BUY" if bull_points >= bear_points else "SELL"
-        lean_color = "🟢" if lean_direction == "BUY" else "🔴"
-
-        with st.container():
-            st.markdown(
-                f"#### {lean_color} **If You Had to Act: LEAN {lean_direction}**"
-            )
-            if lean_direction == "BUY":
-                st.markdown(f"""
-                * **Model Direction:** The data leans **BUY** on a small price pullback rather than selling out.
-                * **Why It Leans Buy:** The price is staying above its 20-day trend line (`${fmt.format(latest['SMA_20'])}`), meaning buyers are protecting dips.
-                * **What to Wait For:** Wait for price to drop closer to lower support (`${fmt.format(latest['BB_Lower'])}`) or for RVOL to spike before entering.
-                """)
-            else:
-                st.markdown(f"""
-                * **Model Direction:** The data leans **SELL / DE-RISK** on any short-term rally rather than buying new shares.
-                * **Why It Leans Sell:** The price is dragging below the institutional VWAP line (`${fmt.format(latest['VWAP'])}`), showing institutional selling.
-                * **What to Wait For:** Consider locking in profits if price fails to clear the 20-day moving average (`${fmt.format(latest['SMA_20'])}`).
-                """)
-
-    render_trading_strategies_guide()
-
-    # ---------------------------------------------------------
-    # 1. Main Graphic (High Contrast Color & Human-Readable Labels)
-    # ---------------------------------------------------------
+    # 1. Price vs VWAP Chart
     st.subheader(f"Price Action vs. VWAP & Volatility Bands ({ticker_name})")
-    fig_main = go.Figure()
+    chart_data = df[["Close", "VWAP", "BB_Upper", "BB_Lower"]].dropna()
+    st.line_chart(chart_data)
 
-    # High-contrast vibrant cyan line for stock price
-    fig_main.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df["Close"],
-            mode="lines",
-            name="Daily Closing Stock Price",
-            line=dict(color="#00E5FF", width=2.5),
-        )
-    )
-    fig_main.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df["VWAP"],
-            mode="lines",
-            name="VWAP (Institutional Average)",
-            line=dict(color="#FFD700", width=1.5, dash="dash"),
-        )
-    )
-    fig_main.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df["BB_Upper"],
-            mode="lines",
-            name="Upper Resistance Band (20-Day + 2 Std Dev)",
-            line=dict(color="rgba(255, 255, 255, 0.4)", dash="dot"),
-        )
-    )
-    fig_main.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df["BB_Lower"],
-            mode="lines",
-            name="Lower Support Band (20-Day - 2 Std Dev)",
-            line=dict(color="rgba(255, 255, 255, 0.4)", dash="dot"),
-        )
-    )
-    fig_main.update_layout(
-        template="plotly_dark",
-        height=450,
-        margin=dict(l=20, r=20, t=30, b=20),
-        legend=dict(
-            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
-        ),
-        hovermode="x unified",
-    )
-    st.plotly_chart(fig_main, use_container_width=True, config=plotly_config)
+    # 2. RSI Chart
+    st.subheader("RSI Momentum (14-Period)")
+    st.line_chart(df[["RSI"]].dropna())
 
-    # ---------------------------------------------------------
-    # 2. RSI Momentum Chart (No Scroll Zooming)
-    # ---------------------------------------------------------
-    st.subheader("RSI Momentum & Overbought/Oversold Bounds")
-    fig_rsi = go.Figure()
-    fig_rsi.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df["RSI"],
-            mode="lines",
-            name="RSI (14)",
-            line=dict(color="#A855F7", width=2),
-        )
-    )
-    fig_rsi.add_hline(
-        y=70,
-        line_dash="dash",
-        line_color="#EF4444",
-        annotation_text="Overbought (70)",
-    )
-    fig_rsi.add_hline(
-        y=30,
-        line_dash="dash",
-        line_color="#22C55E",
-        annotation_text="Oversold (30)",
-    )
-    fig_rsi.update_layout(
-        template="plotly_dark",
-        height=250,
-        margin=dict(l=20, r=20, t=20, b=20),
-        yaxis=dict(range=[0, 100]),
-    )
-    st.plotly_chart(fig_rsi, use_container_width=True, config=plotly_config)
-
-    # ---------------------------------------------------------
-    # 3. MACD Chart (Dynamic Green/Red Bar Formatting)
-    # ---------------------------------------------------------
+    # 3. MACD Colored Histogram using Altair
     st.subheader(
-        "MACD Momentum Acceleration (Tall Green = Strong Buying Pressure | Red = Selling Pressure)"
+        "MACD Momentum Acceleration (Green = Bullish Momentum | Red = Bearish Momentum)"
     )
-    colors = [
-        "#22C55E" if val >= 0 else "#EF4444" for val in df["MACD_Hist"].fillna(0)
-    ]
-    fig_macd = go.Figure()
-    fig_macd.add_trace(
-        go.Bar(
-            x=df.index,
-            y=df["MACD_Hist"],
-            marker_color=colors,
-            name="MACD Momentum",
+    macd_df = df[["MACD_Hist"]].reset_index()
+    macd_df["Color"] = np.where(
+        macd_df["MACD_Hist"] >= 0, "Bullish (Green)", "Bearish (Red)"
+    )
+
+    macd_chart = (
+        alt.Chart(macd_df)
+        .mark_bar()
+        .encode(
+            x=alt.X("Date:T", title="Date"),
+            y=alt.Y("MACD_Hist:Q", title="MACD Histogram"),
+            color=alt.Color(
+                "Color:N",
+                scale=alt.Scale(
+                    domain=["Bullish (Green)", "Bearish (Red)"],
+                    range=["#22C55E", "#EF4444"],
+                ),
+            ),
         )
+        .properties(height=250)
     )
-    fig_macd.update_layout(
-        template="plotly_dark", height=250, margin=dict(l=20, r=20, t=20, b=20)
-    )
-    st.plotly_chart(fig_macd, use_container_width=True, config=plotly_config)
+    st.altair_chart(macd_chart, use_container_width=True)
 
-    # ---------------------------------------------------------
-    # 4. Interactive & Accurate Predictive Chart Engine
-    # ---------------------------------------------------------
-    forecast_df, buy_target, sell_target, stop_loss, daily_vector = (
-        generate_predictive_model(df)
-    )
-
+    # 4. Predictive Trajectory Model
     st.markdown("---")
     st.header("🔮 Interactive Predictive Trajectory & Target Levels")
 
@@ -553,172 +402,50 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     t1.metric("Optimal Buy Target", f"${fmt.format(buy_t)}")
     t2.metric("Take Profit Target", f"${fmt.format(sell_t)}")
     t3.metric("Recommended Stop Loss", f"${fmt.format(stop_l)}")
-    t4.metric(
-        "Projected Change Per Period", f"${fmt.format(d_vec)}/period"
-    )
+    t4.metric("Projected Change Per Period", f"${fmt.format(d_vec)}/period")
 
-    fig_pred = go.Figure()
-    # Historical recent closes
-    fig_pred.add_trace(
-        go.Scatter(
-            x=df.index[-40:],
-            y=df["Close"].iloc[-40:],
-            mode="lines",
-            name="Historical Price",
-            line=dict(color="#00E5FF", width=2),
-        )
-    )
-    # Predicted path
-    fig_pred.add_trace(
-        go.Scatter(
-            x=forecast_df_custom.index,
-            y=forecast_df_custom["Predicted Path"],
-            mode="lines+markers",
-            name="Forecasted Trajectory",
-            line=dict(color="#FFD700", width=2, dash="dash"),
-        )
-    )
-    # Upper ATR Target Band
-    fig_pred.add_trace(
-        go.Scatter(
-            x=forecast_df_custom.index,
-            y=forecast_df_custom["Upper Target (ATR)"],
-            mode="lines",
-            name="Upper Target Band (+ATR Risk)",
-            line=dict(color="rgba(34, 197, 94, 0.5)", dash="dot"),
-        )
-    )
-    # Lower ATR Support Band
-    fig_pred.add_trace(
-        go.Scatter(
-            x=forecast_df_custom.index,
-            y=forecast_df_custom["Lower Support (ATR)"],
-            mode="lines",
-            name="Lower Support Band (-ATR Risk)",
-            line=dict(color="rgba(239, 68, 68, 0.5)", dash="dot"),
-            fill="tonexty",
-            fillcolor="rgba(255, 215, 0, 0.08)",
-        )
-    )
-    fig_pred.update_layout(
-        template="plotly_dark",
-        height=400,
-        margin=dict(l=20, r=20, t=20, b=20),
-        hovermode="x unified",
-    )
-    st.plotly_chart(fig_pred, use_container_width=True, config=plotly_config)
+    pred_chart_data = forecast_df_custom[
+        ["Predicted Path", "Upper Target (ATR)", "Lower Support (ATR)"]
+    ]
+    st.line_chart(pred_chart_data)
 
-    # ---------------------------------------------------------
-    # Simplified Quantitative Analyst Desk
-    # ---------------------------------------------------------
+    # Quantitative Breakdown Table
     st.markdown("---")
     st.header(f"📊 Quantitative Analyst Breakdown ({ticker_name})")
-
     rsi_val = latest["RSI"] if pd.notnull(latest["RSI"]) else 50
     rsi_simple = (
-        "Gaining Strength (Buyers in control)"
+        "Gaining Strength"
         if rsi_val > 55
-        else (
-            "Bargain Zone (Oversold)"
-            if rsi_val < 35
-            else "Neutral (Fair Value)"
-        )
+        else ("Bargain Zone" if rsi_val < 35 else "Neutral")
     )
-
-    bb_width = latest["BB_Width"] if pd.notnull(latest["BB_Width"]) else 0
-    vol_simple = (
-        "Coiled Spring (Big move coming soon)"
-        if bb_width < 0.08
-        else "Normal Volatility"
-    )
-
     rvol_val = latest["RVOL"] if pd.notnull(latest["RVOL"]) else 1.0
-    flow_simple = (
-        "Big Institutional Money Active"
-        if rvol_val > 1.25
-        else "Normal Everyday Trading Volume"
-    )
 
     quant_matrix = pd.DataFrame({
         "Market Metric": [
             "Price Momentum (RSI)",
-            "Price Volatility Squeeze",
             "Trading Volume (RVOL)",
             "Institutional VWAP Line",
         ],
         "Current Reading": [
             f"{rsi_val:.1f} Score",
-            f"Width: {bb_width:.3f}",
             f"{rvol_val:.2f}x Normal",
             f"${fmt.format(latest['VWAP'])} Baseline",
         ],
-        "What It Means For You": [
+        "What It Means": [
             rsi_simple,
-            vol_simple,
-            flow_simple,
-            "Price is Healthy (Above Line)"
+            "High Volume Active" if rvol_val > 1.25 else "Normal Volume",
+            "Bullish (Above Line)"
             if latest["Close"] > latest["VWAP"]
-            else "Price is Weak (Below Line)",
+            else "Bearish (Below Line)",
         ],
     })
     st.table(quant_matrix)
-
-    # Financial Statements
-    st.markdown("---")
-    st.header("📋 Financial Statements & Fundamental Overview")
-    if asset_type == "Stock":
-        try:
-            income_stmt = ticker_obj.financials
-            cash_flow = ticker_obj.cashflow
-            if income_stmt is not None and not income_stmt.empty:
-                col_f1, col_f2 = st.columns(2)
-                with col_f1:
-                    st.subheader("Income Statement (Annual)")
-                    items_to_show = [
-                        "Total Revenue",
-                        "Gross Profit",
-                        "Operating Income",
-                        "Net Income",
-                    ]
-                    existing_items = [
-                        item
-                        for item in items_to_show
-                        if item in income_stmt.index
-                    ]
-                    st.dataframe(
-                        income_stmt.loc[existing_items],
-                        use_container_width=True,
-                    )
-                with col_f2:
-                    st.subheader("Cash Flow Statement (Annual)")
-                    cf_items = [
-                        "Operating Cash Flow",
-                        "Capital Expenditures",
-                        "Free Cash Flow",
-                    ]
-                    existing_cf = [
-                        item for item in cf_items if item in cash_flow.index
-                    ]
-                    if existing_cf:
-                        st.dataframe(
-                            cash_flow.loc[existing_cf], use_container_width=True
-                        )
-                    else:
-                        st.dataframe(
-                            cash_flow.head(5), use_container_width=True
-                        )
-            else:
-                st.info("Financial statements not available for this ticker.")
-        except Exception as e:
-            st.info(f"Could not load financial statements: {e}")
-    else:
-        st.info("Cryptocurrencies do not publish corporate financial statements.")
 
     render_news_feed(ticker_obj, ticker_name)
 
 
 # ---------------------------------------------------------
-# App Layout: Stocks vs Crypto
+# Main App Layout
 # ---------------------------------------------------------
 tab_stocks, tab_crypto = st.tabs(["📊 Stock Scanner", "🪙 Crypto Scanner"])
 
@@ -772,58 +499,3 @@ with tab_crypto:
             st.error(
                 f"Could not retrieve crypto data for pair: {crypto_ticker}."
             )
-
-# ---------------------------------------------------------
-# 5. Bottom Section: Actionable Market Signals (5-10 Buys & Sells)
-# ---------------------------------------------------------
-st.markdown("---")
-st.header("🎯 Quantitative Screener: Top Actionable Buy & Sell Candidates")
-st.caption(
-    "Curated based on multi-factor alignment: RSI oversold/overbought thresholds, Bollinger Band boundary interactions, and MACD momentum divergence."
-)
-
-col_buy, col_sell = st.columns(2)
-
-with col_buy:
-    st.subheader("🟢 Top 5 Candidates to BUY / Accumulate")
-    buy_signals = pd.DataFrame({
-        "Ticker": ["NVDA", "AMZN", "GOOGL", "AMD", "MSFT"],
-        "Company": [
-            "NVIDIA Corp.",
-            "Amazon.com Inc.",
-            "Alphabet Inc.",
-            "Advanced Micro Devices",
-            "Microsoft Corp.",
-        ],
-        "RSI (14)": [28.4, 29.1, 32.6, 31.0, 34.2],
-        "Technical Set-up & Catalyst": [
-            "Rebounding off Lower Bollinger Band with positive MACD cross",
-            "Oversold condition with heavy institutional accumulation at 200-day SMA",
-            "Bullish divergence between price lows and RSI momentum",
-            "Retesting support with declining sell volume (RVOL expansion)",
-            "MACD histogram flip from red to green above key VWAP baseline",
-        ],
-    })
-    st.table(buy_signals)
-
-with col_sell:
-    st.subheader("🔴 Top 5 Candidates to SELL / Take Profit")
-    sell_signals = pd.DataFrame({
-        "Ticker": ["TSLA", "NFLX", "PLTR", "SMCI", "META"],
-        "Company": [
-            "Tesla Inc.",
-            "Netflix Inc.",
-            "Palantir Technologies",
-            "Super Micro Computer",
-            "Meta Platforms",
-        ],
-        "RSI (14)": [74.8, 72.3, 78.1, 75.9, 71.4],
-        "Technical Set-up & Catalyst": [
-            "Overbought rejection at Upper Bollinger Band with tapering volume",
-            "Bearish MACD crossover above upper volatility envelope",
-            "Extreme RSI overbought reading; trailing stop loss strongly advised",
-            "Bearish reversal pattern forming near major resistance high",
-            "Bearish momentum divergence while touching upper resistance",
-        ],
-    })
-    st.table(sell_signals)
