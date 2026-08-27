@@ -579,6 +579,7 @@ def fetch_live_stock_quant_picks():
                 macd_h = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
                 rvol = latest["RVOL"] if pd.notnull(latest["RVOL"]) else 1.0
                 atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.03
+                bb_lower = latest["BB_Lower"] if pd.notnull(latest["BB_Lower"]) else cp
                 
                 # Dynamic calculated hold time in trading days based on ATR relative volatility
                 atr_ratio = atr / cp if cp > 0 else 0.03
@@ -586,14 +587,16 @@ def fetch_live_stock_quant_picks():
                 hold_horizon = f"{est_days - 2}–{est_days + 3} Trading Days"
 
                 if cp > vwap and rsi < 65 and macd_h > 0 and rvol > 0.8:
-                    target = cp + (2.0 * atr)
-                    sl = cp - (1.5 * atr)
-                    risk_pct = abs((cp - sl) / cp) * 100
-                    reward_pct = abs((target - cp) / cp) * 100
+                    buy_target = min(cp, bb_lower)
+                    target = buy_target + (2.0 * atr)
+                    sl = buy_target - (1.5 * atr)
+                    risk_pct = abs((buy_target - sl) / buy_target) * 100
+                    reward_pct = abs((target - buy_target) / buy_target) * 100
                     long_results.append({
                         "Ticker": t,
-                        "Entry Price": f"${cp:.2f}",
-                        "Exit Price": f"${target:.2f}",
+                        "Current Price": f"${cp:.2f}",
+                        "Entry Price Target": f"${buy_target:.2f}",
+                        "Exit Target Price": f"${target:.2f}",
                         "Stop Loss": f"${sl:.2f}",
                         "Expected Hold Time": hold_horizon,
                         "VWAP Baseline": f"${vwap:.2f}",
@@ -609,8 +612,9 @@ def fetch_live_stock_quant_picks():
                     reward_pct = abs((cp - target) / cp) * 100
                     short_results.append({
                         "Ticker": t,
-                        "Entry Price": f"${cp:.2f}",
-                        "Exit Price": f"${target:.2f}",
+                        "Current Price": f"${cp:.2f}",
+                        "Entry Price Target": f"${cp:.2f}",
+                        "Exit Target Price": f"${target:.2f}",
                         "Stop Loss": f"${sl:.2f}",
                         "Expected Hold Time": hold_horizon,
                         "VWAP Baseline": f"${vwap:.2f}",
@@ -674,8 +678,9 @@ def fetch_live_crypto_quant_picks():
                     sl = cp - (1.5 * atr)
                     long_crypto.append({
                         "Crypto Pair": pair,
+                        "Current Price": fmt.format(cp),
                         "Entry Price": fmt.format(cp),
-                        "Exit Price": fmt.format(target),
+                        "Exit Price Target": fmt.format(target),
                         "Stop Loss": fmt.format(sl),
                         "Expected Hold Time": hold_horizon,
                         "24h VWAP": fmt.format(vwap),
@@ -688,8 +693,9 @@ def fetch_live_crypto_quant_picks():
                     sl = cp + (1.5 * atr)
                     short_crypto.append({
                         "Crypto Pair": pair,
+                        "Current Price": fmt.format(cp),
                         "Entry Price": fmt.format(cp),
-                        "Exit Price": fmt.format(target),
+                        "Exit Price Target": fmt.format(target),
                         "Stop Loss": fmt.format(sl),
                         "Expected Hold Time": hold_horizon,
                         "24h VWAP": fmt.format(vwap),
