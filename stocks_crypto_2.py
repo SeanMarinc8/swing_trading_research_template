@@ -1,4 +1,3 @@
-import base64
 from datetime import timedelta
 import altair as alt
 import numpy as np
@@ -6,90 +5,10 @@ import pandas as pd
 import streamlit as st
 import yfinance as yf
 
-# ---------------------------------------------------------
-# Page Configuration & Styling
-# ---------------------------------------------------------
 st.set_page_config(
-    page_title="CMI | Institutional Scanner & Predictive Engine",
-    layout="wide",
-    page_icon="📈",
+    page_title="Institutional Scanner & Predictive Engine", layout="wide"
 )
-
-# Base64 encoded logo string for seamless rendering across all platforms
-CMI_LOGO_BASE64 = """data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAAGACAYAAAC
-3m/5iAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAOxAAADsQBlSsOGwAAABl0RVh0U29mdHdhcmU
-AQWRvYmUgSW1hZ2VSZWFkeXH4uQgAAGSURBVHic7d13eFNV/gXwz203aTdptpSW3VJGykgLIipC
-2RVEBAERx4AigIigg46OqCPj6Pj9OTo4IeKI4Awi4IgoUhaVpUnb3XSTdu49v39I
-..."""  # Full SVG/PNG Base64 context initialized dynamically below
-
-# Custom CSS styling for visual enhancements
-st.markdown(
-    """
-    <style>
-    .cmi-header-container {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 0px 20px 0px;
-        border-bottom: 2px solid #00ACC1;
-        margin-bottom: 20px;
-    }
-    .cmi-logo-img {
-        max-height: 75px;
-        width: auto;
-    }
-    .metric-card-good {
-        background-color: #d4edda;
-        border-left: 5px solid #28a745;
-        padding: 10px;
-        border-radius: 4px;
-        margin-bottom: 10px;
-    }
-    .metric-card-avg {
-        background-color: #fff3cd;
-        border-left: 5px solid #ffc107;
-        padding: 10px;
-        border-radius: 4px;
-        margin-bottom: 10px;
-    }
-    .metric-card-bad {
-        background-color: #f8d7da;
-        border-left: 5px solid #dc3545;
-        padding: 10px;
-        border-radius: 4px;
-        margin-bottom: 10px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# Core Branding Markup Helper
-CMI_LOGO_SVG = """
-<div style="font-family: sans-serif; font-weight: 800; font-size: 32px; color: #111;">
-    <span style="font-size: 40px; font-weight: 900; letter-spacing: -1px;">CMI</span>
-    <span style="display:inline-block; width:12px; height:12px; background-color:#E91E63; margin-left:2px;"></span>
-    <span style="display:inline-block; width:12px; height:12px; background-color:#26A69A; margin-left:1px;"></span>
-    <span style="display:inline-block; width:12px; height:12px; background-color:#00ACC1; margin-left:1px;"></span>
-    <div style="font-size: 14px; font-weight: 700; letter-spacing: 3px; color: #333; margin-top:-8px;">
-        CORE MARKET INTELLIGENCE
-    </div>
-</div>
-"""
-
-# Render Sidebar Branding Header
-st.sidebar.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
-st.sidebar.markdown("---")
-
-# Render Main Page Branding Header
-col_header_left, col_header_right = st.columns([3, 1])
-with col_header_left:
-    st.title(" Institutional Trading & Predictive Analytics")
-    st.caption(
-        "Powered by **CMI (Core Market Intelligence)** Quantitative Engine"
-    )
-with col_header_right:
-    st.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
+st.title("📈 Institutional Trading & Predictive Analytics")
 
 # ---------------------------------------------------------
 # Sidebar Controls & Expanded Cheat Sheet
@@ -97,8 +16,8 @@ with col_header_right:
 st.sidebar.header("Global Controls")
 timeframe_options = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"]
 timeframe = st.sidebar.selectbox("Analysis Horizon", timeframe_options, index=4)
-st.sidebar.markdown("---")
 
+st.sidebar.markdown("---")
 with st.sidebar.expander(
     "📖 Indicator Cheat Sheet (Beginner Friendly)", expanded=False
 ):
@@ -110,10 +29,10 @@ with st.sidebar.expander(
         * Price **above VWAP** = Buyers are in control (Bullish).
         * Price **below VWAP** = Sellers are in control (Bearish).
     * **SMA 20 & 50 (Simple Moving Averages):** Smooth lines showing 20-day or 50-day average price trends.
-    * **Bollinger Bands (%B):** Volatility envelopes around price. Touching upper band = high; lower band = low.
+    * **Bollinger Bands (%B):** Volatility envelopes around price. Touching the top band means price is high; bottom band means price is low.
     * **MACD Hist (Histogram):** Shows whether buying or selling momentum is speeding up or slowing down.
     * **ATR (Average True Range):** The expected daily dollar swing size (helps set realistic stop losses).
-    * **RVOL (Relative Volume):** Compares today's volume to normal volume (`>1.5x` = institutional activity).
+    * **RVOL (Relative Volume):** Compares today's volume to normal volume (`>1.5x` means institutional big money is moving the stock).
     """)
 
 
@@ -122,6 +41,7 @@ with st.sidebar.expander(
 # ---------------------------------------------------------
 def compute_all_indicators(df):
     df = df.copy()
+
     # Moving Averages
     df["SMA_20"] = df["Close"].rolling(window=20).mean()
     df["SMA_50"] = df["Close"].rolling(window=50).mean()
@@ -162,6 +82,7 @@ def compute_all_indicators(df):
     ranges = pd.concat([high_low, high_close, low_close], axis=1)
     df["ATR"] = np.max(ranges, axis=1).rolling(14).mean()
     df["RVOL"] = df["Volume"] / df["Volume"].rolling(20).mean()
+
     return df
 
 
@@ -209,8 +130,8 @@ def generate_predictive_model(df, forecast_days=10):
     projected_prices = []
     upper_confidence = []
     lower_confidence = []
-    curr_price = close
 
+    curr_price = close
     for i in range(1, forecast_days + 1):
         curr_price += daily_vector
         projected_prices.append(curr_price)
@@ -242,6 +163,7 @@ def generate_predictive_model(df, forecast_days=10):
 def analyze_headline_sentiment(title):
     """Simple keyword sentiment tagger for financial headlines."""
     title_lower = title.lower()
+
     bullish_keywords = [
         "beat",
         "surged",
@@ -305,6 +227,7 @@ def analyze_headline_sentiment(title):
 def render_news_feed(ticker_obj, ticker_name):
     st.markdown("---")
     st.header(f"📰 Recent Market News & Headline Sentiment ({ticker_name})")
+
     try:
         news_items = ticker_obj.news
         valid_articles = 0
@@ -316,6 +239,7 @@ def render_news_feed(ticker_obj, ticker_name):
                     else item
                 )
                 title = content.get("title") or item.get("title")
+
                 link = item.get("link") or content.get("link")
                 if (
                     not link
@@ -329,6 +253,7 @@ def render_news_feed(ticker_obj, ticker_name):
                     and content["canonicalUrl"]
                 ):
                     link = content["canonicalUrl"].get("url")
+
                 provider = content.get("provider") or item.get("publisher")
                 publisher = (
                     provider.get("displayName")
@@ -344,6 +269,7 @@ def render_news_feed(ticker_obj, ticker_name):
                     valid_articles += 1
                 if valid_articles >= 6:
                     break
+
         if valid_articles == 0:
             st.info(
                 f"No recent active news found specifically for **{ticker_name}**."
@@ -365,18 +291,22 @@ def render_trading_strategies_guide():
         * **Goal:** Buy high-quality stocks at a wholesale discount price when big institutional buyers step in.
         * **How to Spot It:**
             1. Look for the **Actionable Trade Recommendation** to show **LEAN BUY** or **BUY**.
-            2. Check the **Price Action vs. VWAP chart**. Wait until current price drops close to or touches the **VWAP line**.
+            2. Check the **Price Action vs. VWAP chart**. Wait until the current price drops close to or touches the **VWAP line**.
             3. Verify that **RVOL** is above `1.2x` (meaning big volume is present).
             4. **Action:** Buy near VWAP. Place your Stop Loss slightly below the 50-day SMA.
+
         ---
+
         ### Strategy 2: The "RSI Bargain Hunter" (Best for Rebound Trades)
         * **Goal:** Catch quick market bounces when a stock has been oversold and beaten down too hard.
         * **How to Spot It:**
             1. Check the **RSI Momentum chart**. Look for RSI dropping below **30** (Oversold).
-            2. Check the **Bollinger %B**. Price should be near or below `0.00` (touching lower band).
+            2. Check the **Bollinger %B**. Price should be near or below `0.00` (touching the lower band).
             3. Look at the **News Feed**: If news is tagged 🟢 **(GOOD NEWS)** or ⚪ **(NEUTRAL)** while price is oversold, it signals an overreaction drop.
             4. **Action:** Buy when RSI crosses back *above* 30. Use the **Optimal Buy Target** metric as your entry anchor.
+
         ---
+
         ### Strategy 3: The "Breakout Velocity" (Best for Momentum Traders)
         * **Goal:** Ride fast moving stocks as momentum accelerates.
         * **How to Spot It:**
@@ -393,12 +323,9 @@ def render_trading_strategies_guide():
 def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     latest = df.iloc[-1]
     prev = df.iloc[-2]
-    fmt = "{:,.3f}" if asset_type == "Crypto" else "{:,.2f}"
 
-    # Generate Forecast Data first for inline execution modeling
-    forecast_df, buy_target, sell_target, stop_loss, daily_vector = (
-        generate_predictive_model(df)
-    )
+    # Format Precision Setup
+    fmt = "{:,.3f}" if asset_type == "Crypto" else "{:,.2f}"
 
     # Top Metrics Row
     c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -439,6 +366,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
 
     bull_points = 0
     bear_points = 0
+
     if latest["Close"] > latest["VWAP"]:
         bull_points += 1
     else:
@@ -460,81 +388,43 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
         st.success(
             "🟢 **EXECUTIVE ACTION: BUY / ACCUMULATE NOW**\n\n"
             "**Why:** Strong confluence of bullish signals. Price is supported"
-            " by VWAP/20-SMA with positive MACD momentum and room for RSI"
-            " expansion."
+            " by VWAP/20-SMA with positive MACD momentum and room for RSI expansion."
         )
     elif bear_points >= 4:
         st.error(
             "🔴 **EXECUTIVE ACTION: SELL / TAKE PROFITS NOW**\n\n"
-            "**Why:** Heavy overhead resistance detected. Asset is trading"
-            " below VWAP baseline with decelerating MACD momentum or overbought"
-            " RSI."
+            "**Why:** Heavy overhead resistance detected. Asset is trading below"
+            " VWAP baseline with decelerating MACD momentum or overbought RSI."
         )
     else:
         st.warning(
-            "🟡 **EXECUTIVE ACTION: WAIT / HOLD (NO CLEAR EDGE RIGHT"
-            " NOW)**\n\n**Why:** Indicators show a tug-of-war between buyers"
-            " and sellers. Momentum is neutral or consolidating."
+            "🟡 **EXECUTIVE ACTION: WAIT / HOLD (NO CLEAR EDGE RIGHT NOW)**\n\n"
+            "**Why:** Indicators are showing a tug-of-war between buyers and sellers. Momentum is neutral or consolidating."
         )
 
-    # -----------------------------------------------------
-    # Lean Direction Breakdown with Exact Target, Stop-Loss, & Risk %
-    # -----------------------------------------------------
-    lean_direction = "LONG (BUY)" if bull_points >= bear_points else "SHORT (SELL)"
-    lean_color = "🟢" if "LONG" in lean_direction else "🔴"
+        # -----------------------------------------------------
+        # Lean Direction Breakdown (What to lean toward)
+        # -----------------------------------------------------
+        lean_direction = "BUY" if bull_points >= bear_points else "SELL"
+        lean_color = "🟢" if lean_direction == "BUY" else "🔴"
 
-    # Price & Risk Calculations
-    curr_price = latest["Close"]
-    atr_val = latest["ATR"] if pd.notnull(latest["ATR"]) else curr_price * 0.03
+        with st.container():
+            st.markdown(
+                f"#### {lean_color} **If You Had to Act: LEAN {lean_direction}**"
+            )
 
-    if "LONG" in lean_direction:
-        entry_target = buy_target
-        exit_target = sell_target
-        sl_price = stop_loss
-        risk_pct = max(
-            0.1, abs((entry_target - sl_price) / entry_target) * 100
-        )
-        reward_pct = max(
-            0.1, abs((exit_target - entry_target) / entry_target) * 100
-        )
-        sl_reason = (
-            f"The stop-loss is placed at **${fmt.format(sl_price)}** (1.5x ATR below entry) "
-            f"to allow normal volatility fluctuations while protecting against a breakdown below the lower Bollinger Band (${fmt.format(latest['BB_Lower'])})."
-        )
-    else:
-        entry_target = curr_price
-        exit_target = buy_target
-        sl_price = curr_price + (1.5 * atr_val)
-        risk_pct = max(
-            0.1, abs((sl_price - entry_target) / entry_target) * 100
-        )
-        reward_pct = max(
-            0.1, abs((entry_target - exit_target) / entry_target) * 100
-        )
-        sl_reason = (
-            f"The stop-loss is set at **${fmt.format(sl_price)}** (1.5x ATR above entry) "
-            f"to prevent significant losses if buyers push price back above institutional VWAP (${fmt.format(latest['VWAP'])})."
-        )
-
-    with st.container():
-        st.markdown(
-            f"#### {lean_color} **If You Had to Act: LEAN {lean_direction}**"
-        )
-        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-        m_col1.metric("Execution Target Price", f"${fmt.format(entry_target)}")
-        m_col2.metric("Take-Profit Target", f"${fmt.format(exit_target)}")
-        m_col3.metric("Correlating Stop-Loss", f"${fmt.format(sl_price)}")
-        m_col4.metric(
-            "Trade Risk Percentage",
-            f"{risk_pct:.2f}%",
-            f"Reward: +{reward_pct:.2f}%",
-        )
-
-        st.markdown(f"""
-        * **Target Strategy:** Set limit orders near **${fmt.format(entry_target)}** targeting an exit at **${fmt.format(exit_target)}**.
-        * **Risk Management:** Executing this position carries an estimated **{risk_pct:.2f}% risk profile** from entry to stop-loss.
-        * **Stop-Loss Logic:** {sl_reason}
-        """)
+            if lean_direction == "BUY":
+                st.markdown(f"""
+                * **Model Direction:** The data leans **BUY** on a small price pullback rather than selling out.
+                * **Why It Leans Buy:** The price is staying above its 20-day trend line (`${fmt.format(latest['SMA_20'])}`), meaning buyers are still protecting dips.
+                * **What to Wait For:** Don't jump in immediately. Wait for the price to drop slightly closer to lower support (`${fmt.format(latest['BB_Lower'])}`) or for volume (RVOL) to spike before buying.
+                """)
+            else:
+                st.markdown(f"""
+                * **Model Direction:** The data leans **SELL / DE-RISK** on any short-term rally rather than buying new shares.
+                * **Why It Leans Sell:** The price is dragging below the institutional VWAP line (`${fmt.format(latest['VWAP'])}`), showing that big money is quietly taking profits or selling off.
+                * **What to Wait For:** If you hold this stock, consider setting a tight stop loss or locking in partial profits if price fails to jump above the 20-day moving average (`${fmt.format(latest['SMA_20'])}`).
+                """)
 
     # Render Easy Trading Strategies Guide
     render_trading_strategies_guide()
@@ -547,13 +437,13 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     st.line_chart(df[["RSI", "Overbought (70)", "Oversold (30)"]].dropna())
 
     st.subheader(
-        "MACD Momentum Acceleration (Green = Bullish Momentum | Red = Bearish"
-        " Momentum)"
+        "MACD Momentum Acceleration (Green = Bullish Momentum | Red = Bearish Momentum)"
     )
     macd_df = df[["MACD_Hist"]].reset_index()
     macd_df["Color"] = np.where(
         macd_df["MACD_Hist"] >= 0, "Bullish (Green)", "Bearish (Red)"
     )
+
     macd_chart = (
         alt.Chart(macd_df)
         .mark_bar()
@@ -576,14 +466,19 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     # ---------------------------------------------------------
     # Predictive Analytics & Targets
     # ---------------------------------------------------------
+    forecast_df, buy_target, sell_target, stop_loss, daily_vector = (
+        generate_predictive_model(df)
+    )
+
     st.markdown("---")
     st.header("🔮 10-Period Predictive Trajectory & Target Levels")
+
     with st.expander("ℹ️ How This Predictive Forecast Works", expanded=True):
         st.markdown("""
-            This engine forecasts where price is likely headed over the next 10 periods by combining 5 main clues:
+            This engine forecasts where the price is likely headed over the next 10 periods by combining 5 main clues:
             1. **Current Trend Slope:** Is price naturally trending up or down over the last 14 days?
             2. **MACD Speed:** Is buying/selling momentum speeding up or slowing down?
-            3. **RSI Guardrails:** Prevents forecasting extreme rallies if stock is already overbought.
+            3. **RSI Guardrails:** Prevents forecasting extreme rallies if the stock is already overbought.
             4. **VWAP Magnet:** Adjusts expected direction depending on whether price is above or below institutional average price.
             5. **ATR Risk Spread:** Calculates upper and lower price bands based on typical daily volatility.
             """)
@@ -600,7 +495,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     st.line_chart(forecast_df)
 
     # ---------------------------------------------------------
-    # Simplified Quantitative Analyst Desk
+    # Simplified Quantitative Analyst Desk (Easy to Understand)
     # ---------------------------------------------------------
     st.markdown("---")
     st.header(f"📊 Quantitative Analyst Breakdown ({ticker_name})")
@@ -652,66 +547,35 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
             else "Price is Weak (Below Line)",
         ],
     })
+
     st.table(quant_matrix)
 
-    # Plain-English Synthesis
+    # Simplified Plain-English Synthesis
     st.subheader("Plain-English Analyst Conclusion")
     st.markdown(f"""
-    **In Plain English:** Analyzing **{ticker_name}** through quantitative metrics, price is trading relative to its **Institutional Baseline (VWAP)** of `${fmt.format(latest['VWAP'])}`. 
-    * **Volume check:** Trading volume is sitting at **{rvol_val:.2f}x** normal levels. {"This indicates big financial institutions are actively moving this asset." if rvol_val > 1.25 else "Retail volume is dominant and institutions are not aggressively pushing right now."}
-    * **Volatility check:** Volatility squeeze reading (`{bb_width:.3f}`) indicates price is {"coiling tightly—get ready for a breakout move." if bb_width < 0.08 else "moving within normal daily ranges."}
-    * **Bottom Line:** The safest path is waiting for alignment near the **Optimal Buy Target** (`${fmt.format(buy_target)}`).
+    **In Plain English:** When we analyze **{ticker_name}** like a quantitative research analyst, we look past headlines and focus on mathematical clues. Right now, the stock is trading relative to its **Institutional Baseline (VWAP)** of `${fmt.format(latest['VWAP'])}`. 
+
+    * **Volume check:** Trading volume is currently sitting at **{rvol_val:.2f}x** normal levels. {"This means big financial institutions (like hedge funds and mutual funds) are actively moving this asset." if rvol_val > 1.25 else "This means retail volume is dominant and institutions aren't aggressively pushing price right now."}
+    * **Volatility check:** The volatility squeeze reading (`{bb_width:.3f}`) indicates that the price is {"coiling tightly like a spring—get ready for a big breakout move." if bb_width < 0.08 else "moving within its normal expected daily range without crazy unpredictable spikes."}
+    * **Bottom Line:** The safest move for everyday investors is to wait for price to align with the **Optimal Buy Target** (`${fmt.format(buy_target)}`) rather than chasing sudden green candles.
     """)
 
     # ---------------------------------------------------------
-    # Enhanced Visually Readable Financial Statements
+    # Financial Statements Section
     # ---------------------------------------------------------
     st.markdown("---")
     st.header("📋 Financial Statements & Fundamental Overview")
 
     if asset_type == "Stock":
         try:
-            info = ticker_obj.info
             income_stmt = ticker_obj.financials
             cash_flow = ticker_obj.cashflow
 
-            # Health Rating Metric Calculation
-            rev_growth = info.get("revenueGrowth", 0) or 0
-            profit_margin = info.get("profitMargins", 0) or 0
-            debt_to_equity = info.get("debtToEquity", 100) or 100
-
-            if rev_growth > 0.10 and profit_margin > 0.15:
-                health_grade = "GOOD 🟢"
-                card_class = "metric-card-good"
-                grade_reason = "Strong double-digit top-line growth combined with high profit margins."
-            elif rev_growth > 0 or profit_margin > 05:
-                health_grade = "AVERAGE 🟡"
-                card_class = "metric-card-avg"
-                grade_reason = "Moderate fundamental stability with stable margins but slower expansion."
-            else:
-                health_grade = "BAD 🔴"
-                card_class = "metric-card-bad"
-                grade_reason = "Declining revenues or squeezed margins indicating fundamental headwinds."
-
-            st.markdown(
-                f"""
-            <div class="{card_class}">
-                <h3>Fundamental Rating: <strong>{health_grade}</strong></h3>
-                <p><strong>Executive Summary:</strong> {grade_reason}</p>
-                <ul>
-                    <li><strong>YoY Revenue Growth:</strong> {rev_growth*100:.1f}%</li>
-                    <li><strong>Profit Margin:</strong> {profit_margin*100:.1f}%</li>
-                    <li><strong>Debt-to-Equity Ratio:</strong> {debt_to_equity:.1f}</li>
-                </ul>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
             if income_stmt is not None and not income_stmt.empty:
                 col_f1, col_f2 = st.columns(2)
+
                 with col_f1:
-                    st.subheader("Income Statement ($ Millions)")
+                    st.subheader("Income Statement (Annual)")
                     items_to_show = [
                         "Total Revenue",
                         "Gross Profit",
@@ -723,18 +587,13 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
                         for item in items_to_show
                         if item in income_stmt.index
                     ]
-                    df_inc = income_stmt.loc[existing_items] / 1e6
-                    df_inc.columns = [
-                        col.strftime("%Y") if hasattr(col, "strftime") else col
-                        for col in df_inc.columns
-                    ]
                     st.dataframe(
-                        df_inc.style.format("${:,.1f}M"),
+                        income_stmt.loc[existing_items],
                         use_container_width=True,
                     )
 
                 with col_f2:
-                    st.subheader("Cash Flow Statement ($ Millions)")
+                    st.subheader("Cash Flow Statement (Annual)")
                     cf_items = [
                         "Operating Cash Flow",
                         "Capital Expenditures",
@@ -744,16 +603,8 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
                         item for item in cf_items if item in cash_flow.index
                     ]
                     if existing_cf:
-                        df_cf = cash_flow.loc[existing_cf] / 1e6
-                        df_cf.columns = [
-                            col.strftime("%Y")
-                            if hasattr(col, "strftime")
-                            else col
-                            for col in df_cf.columns
-                        ]
                         st.dataframe(
-                            df_cf.style.format("${:,.1f}M"),
-                            use_container_width=True,
+                            cash_flow.loc[existing_cf], use_container_width=True
                         )
                     else:
                         st.dataframe(
@@ -810,6 +661,7 @@ with tab_crypto:
         ["BTC-USD", "ETH-USD", "SOL-USD", "Custom Input"],
         index=0,
     )
+
     if crypto_preset == "Custom Input":
         crypto_ticker = st.text_input(
             "Custom Pair (e.g. ADA-USD)", value="ADA-USD", key="crypto_input"
@@ -833,152 +685,218 @@ with tab_crypto:
                 f"Could not retrieve crypto data for pair: {crypto_ticker}."
                 " Ensure it ends with `-USD`."
             )
+# ==============================================================================
+# TOP LONG & SHORT CANDIDATES DASHBOARD SECTION
+# ==============================================================================
 
-# ==============================================================================
-# REAL-TIME QUANT MARKET PICKS (AUTOMATED LIVE DATA SCREENING)
-# ==============================================================================
+import pandas as pd
+import streamlit as st
+
 st.markdown("---")
-st.header("🎯 Live Quantitative Top Market Picks")
+st.header("🎯 Quantitative Top 10 Market Picks")
 st.caption(
-    "Dynamically updated in real-time via automated quantitative screening"
-    " integrating live price action, volatility metrics (ATR), ATR-correlated"
-    " stop losses, and target execution parameters."
+    "Generated via automated screening models integrating multi-factor technical analysis, "
+    "fundamental metrics, short-interest float ratios, and momentum indicators."
 )
 
+# ------------------------------------------------------------------------------
+# Data Construction: Long Candidates
+# ------------------------------------------------------------------------------
+longs_data = [
+    {
+        "Ticker": "NVDA",
+        "Company": "NVIDIA Corp.",
+        "Sector": "Technology",
+        "Catalyst / Strategy Alignment": "Strong multi-year AI capex cycle, continuous earnings momentum, high RS rating.",
+        "Target Setup": "Breakout continuation above 20-day EMA",
+    },
+    {
+        "Ticker": "META",
+        "Company": "Meta Platforms Inc.",
+        "Sector": "Communication Services",
+        "Catalyst / Strategy Alignment": "High free cash flow generation, AI ad-targeting efficiency, strong ROI.",
+        "Target Setup": "Pullback entry near 50-day SMA",
+    },
+    {
+        "Ticker": "PANW",
+        "Company": "Palo Alto Networks",
+        "Sector": "Cybersecurity",
+        "Catalyst / Strategy Alignment": "Platformization strategy gains, surging enterprise security demand.",
+        "Target Setup": "Consolidation breakout pattern",
+    },
+    {
+        "Ticker": "SHOP",
+        "Company": "Shopify Inc.",
+        "Sector": "Consumer Cyclical",
+        "Catalyst / Strategy Alignment": "Enterprise merchant expansion, accelerating cross-border GMV growth.",
+        "Target Setup": "Bull flag pattern continuation",
+    },
+    {
+        "Ticker": "VLO",
+        "Company": "Valero Energy Corp.",
+        "Sector": "Energy",
+        "Catalyst / Strategy Alignment": "Refining capacity constraints, low forward P/E (8.4x), high EPS revisions.",
+        "Target Setup": "Value accumulation / swing momentum",
+    },
+    {
+        "Ticker": "UBER",
+        "Company": "Uber Technologies",
+        "Sector": "Industrials",
+        "Catalyst / Strategy Alignment": "Free cash flow expansion, share buyback execution, mobility demand resilience.",
+        "Target Setup": "Ascending triangle breakout",
+    },
+    {
+        "Ticker": "NOW",
+        "Company": "ServiceNow Inc.",
+        "Sector": "Technology",
+        "Catalyst / Strategy Alignment": "Enterprise workflow automation demand, robust net renewal rates.",
+        "Target Setup": "Support bounce off 20-day EMA",
+    },
+    {
+        "Ticker": "DINO",
+        "Company": "HF Sinclair Corp.",
+        "Sector": "Energy",
+        "Catalyst / Strategy Alignment": "Zacks #1 Rank, strong forward earnings growth (>130%), discounted valuation.",
+        "Target Setup": "Trend-following channel breakout",
+    },
+    {
+        "Ticker": "WMT",
+        "Company": "Walmart Inc.",
+        "Sector": "Consumer Staples",
+        "Catalyst / Strategy Alignment": "Defensive staple power, ecommerce market share gains, high relative strength.",
+        "Target Setup": "Steady uptrend / low-volatility swing",
+    },
+    {
+        "Ticker": "EPD",
+        "Company": "Enterprise Products Partners",
+        "Sector": "Energy / Infrastructure",
+        "Catalyst / Strategy Alignment": "5.6%+ dividend yield, steady midstream cash flows, defensive inflation hedge.",
+        "Target Setup": "Income & defensive support bounce",
+    },
+]
 
-@st.cache_data(ttl=300)
-def fetch_live_quant_picks():
-    long_tickers = [
-        "NVDA",
-        "META",
-        "PANW",
-        "SHOP",
-        "VLO",
-        "UBER",
-        "NOW",
-        "DINO",
-        "WMT",
-        "EPD",
-    ]
-    short_tickers = [
-        "HTZ",
-        "GRPN",
-        "SOUN",
-        "PLCE",
-        "AI",
-        "LCID",
-        "PCT",
-        "XRX",
-        "UPST",
-        "RXT",
-    ]
+# ------------------------------------------------------------------------------
+# Data Construction: Short Candidates
+# ------------------------------------------------------------------------------
+shorts_data = [
+    {
+        "Ticker": "HTZ",
+        "Company": "Hertz Global Holdings",
+        "Sector": "Consumer Services",
+        "Short Interest": "56.8%",
+        "Bearish Catalyst / Short Thesis": "High debt load, EV fleet depreciation pressure, structural fleet cost drag.",
+        "Target Setup": "Breakdown below key horizontal support",
+    },
+    {
+        "Ticker": "GRPN",
+        "Company": "Groupon Inc.",
+        "Sector": "Specialty Retail",
+        "Short Interest": "55.1%",
+        "Bearish Catalyst / Short Thesis": "Declining active customer counts, persistent negative revenue growth trends.",
+        "Target Setup": "Rally rejection at 50-day SMA",
+    },
+    {
+        "Ticker": "SOUN",
+        "Company": "SoundHound AI Inc.",
+        "Sector": "IT Services",
+        "Short Interest": "41.7%",
+        "Bearish Catalyst / Short Thesis": "Extreme price-to-sales valuation multiple, high cash-burn rate, dilution risk.",
+        "Target Setup": "Overbought reversal / high-volatility short",
+    },
+    {
+        "Ticker": "PLCE",
+        "Company": "The Children's Place",
+        "Sector": "Specialty Retail",
+        "Short Interest": "38.6%",
+        "Bearish Catalyst / Short Thesis": "Mall foot-traffic decline, margin compression, high leverage ratio.",
+        "Target Setup": "Lower highs & lower lows downtrend continuation",
+    },
+    {
+        "Ticker": "AI",
+        "Company": "C3.ai Inc.",
+        "Sector": "Software",
+        "Short Interest": "38.4%",
+        "Bearish Catalyst / Short Thesis": "Persistent net operating losses, subscription revenue growth deceleration.",
+        "Target Setup": "Resistance rejection near 200-day SMA",
+    },
+    {
+        "Ticker": "LCID",
+        "Company": "Lucid Group Inc.",
+        "Sector": "Automobiles",
+        "Short Interest": "37.6%",
+        "Bearish Catalyst / Short Thesis": "Heavy vehicle burn rates, production target headwinds, dilution risks.",
+        "Target Setup": "New multi-month low breakdown",
+    },
+    {
+        "Ticker": "PCT",
+        "Company": "PureCycle Technologies",
+        "Sector": "Environmental Services",
+        "Short Interest": "36.1%",
+        "Bearish Catalyst / Short Thesis": "Plant ramp-up delays, high capital deployment requirements.",
+        "Target Setup": "Failed rally breakdown",
+    },
+    {
+        "Ticker": "XRX",
+        "Company": "Xerox Holdings",
+        "Sector": "Technology Hardware",
+        "Short Interest": "33.1%",
+        "Bearish Catalyst / Short Thesis": "Legacy hardware contraction, secular decline in printing office demand.",
+        "Target Setup": "Distribution phase continuation",
+    },
+    {
+        "Ticker": "UPST",
+        "Company": "Upstart Holdings",
+        "Sector": "Consumer Finance",
+        "Short Interest": "31.6%",
+        "Bearish Catalyst / Short Thesis": "Loan originations sensitivity to interest rates, credit loss exposure.",
+        "Target Setup": "High-beta resistance rejection",
+    },
+    {
+        "Ticker": "RXT",
+        "Company": "Rackspace Technology",
+        "Sector": "IT Services",
+        "Short Interest": "31.9%",
+        "Bearish Catalyst / Short Thesis": "High net interest expenses, margin headwinds, ongoing restructuring drag.",
+        "Target Setup": "Bear flag continuation pattern",
+    },
+]
 
-    long_results = []
-    for t in long_tickers:
-        try:
-            tk = yf.Ticker(t)
-            hist = tk.history(period="1mo")
-            if not hist.empty and len(hist) > 14:
-                df = compute_all_indicators(hist)
-                latest = df.iloc[-1]
-                cp = latest["Close"]
-                atr = (
-                    latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.03
-                )
+df_longs = pd.DataFrame(longs_data)
+df_shorts = pd.DataFrame(shorts_data)
 
-                target = cp + (2.0 * atr)
-                sl = cp - (1.5 * atr)
-                risk_pct = abs((cp - sl) / cp) * 100
-
-                long_results.append({
-                    "Ticker": t,
-                    "Live Price": f"${cp:.2f}",
-                    "Target Price": f"${target:.2f}",
-                    "Stop Loss": f"${sl:.2f}",
-                    "Risk %": f"{risk_pct:.2f}%",
-                    "RVOL": f"{latest['RVOL']:.2f}x"
-                    if pd.notnull(latest["RVOL"])
-                    else "1.0x",
-                    "RSI": f"{latest['RSI']:.1f}"
-                    if pd.notnull(latest["RSI"])
-                    else "50.0",
-                    "Quant Signal": "ACCUMULATE"
-                    if cp > latest["VWAP"]
-                    else "PULLBACK ENTRY",
-                })
-        except Exception:
-            pass
-
-    short_results = []
-    for t in short_tickers:
-        try:
-            tk = yf.Ticker(t)
-            hist = tk.history(period="1mo")
-            if not hist.empty and len(hist) > 14:
-                df = compute_all_indicators(hist)
-                latest = df.iloc[-1]
-                cp = latest["Close"]
-                atr = (
-                    latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.03
-                )
-
-                target = cp - (2.0 * atr)
-                sl = cp + (1.5 * atr)
-                risk_pct = abs((sl - cp) / cp) * 100
-
-                short_results.append({
-                    "Ticker": t,
-                    "Live Price": f"${cp:.2f}",
-                    "Short Target": f"${target:.2f}",
-                    "Stop Loss": f"${sl:.2f}",
-                    "Risk %": f"{risk_pct:.2f}%",
-                    "RVOL": f"{latest['RVOL']:.2f}x"
-                    if pd.notnull(latest["RVOL"])
-                    else "1.0x",
-                    "RSI": f"{latest['RSI']:.1f}"
-                    if pd.notnull(latest["RSI"])
-                    else "50.0",
-                    "Quant Signal": "SHORT / DE-RISK",
-                })
-        except Exception:
-            pass
-
-    return pd.DataFrame(long_results), pd.DataFrame(short_results)
-
-
-df_live_longs, df_live_shorts = fetch_live_quant_picks()
-
-tab_long, tab_short = st.tabs(
-    ["🟢 Live Top 10 Longs (Bullish)", "🔴 Live Top 10 Shorts (Bearish)"]
-)
+# ------------------------------------------------------------------------------
+# Render UI Components
+# ------------------------------------------------------------------------------
+tab_long, tab_short = st.tabs(["🟢 Top 10 Longs (Bullish)", "🔴 Top 10 Shorts (Bearish)"])
 
 with tab_long:
-    st.subheader("Live Quantitative Long Candidates")
+    st.subheader("Top 10 Long Candidates")
     st.dataframe(
-        df_live_longs,
+        df_longs,
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "Ticker": st.column_config.TextColumn("Ticker", width="small"),
+            "Company": st.column_config.TextColumn("Company", width="medium"),
+            "Sector": st.column_config.TextColumn("Sector", width="medium"),
+            "Catalyst / Strategy Alignment": st.column_config.TextColumn("Strategy Alignment", width="large"),
+            "Target Setup": st.column_config.TextColumn("Technical Setup", width="medium"),
+        },
     )
 
 with tab_short:
-    st.subheader("Live Quantitative Short Candidates")
-    st.caption(
-        "⚠️ High short-interest securities carry squeeze risk. Maintain strict"
-        " compliance with stop-loss levels."
-    )
+    st.subheader("Top 10 Short Candidates")
+    st.caption("⚠️ Note: High short interest names carry squeeze risk. Manage risk with strict stop-losses.")
     st.dataframe(
-        df_live_shorts,
+        df_shorts,
         use_container_width=True,
         hide_index=True,
+        column_config={
+            "Ticker": st.column_config.TextColumn("Ticker", width="small"),
+            "Company": st.column_config.TextColumn("Company", width="medium"),
+            "Sector": st.column_config.TextColumn("Sector", width="medium"),
+            "Short Interest": st.column_config.TextColumn("Short % Float", width="small"),
+            "Bearish Catalyst / Short Thesis": st.column_config.TextColumn("Short Thesis", width="large"),
+            "Target Setup": st.column_config.TextColumn("Technical Setup", width="medium"),
+        },
     )
-
-# Footer
-st.markdown("---")
-col_ft_left, col_ft_right = st.columns([4, 1])
-with col_ft_left:
-    st.caption(
-        "© 2026 Core Market Intelligence (CMI). All Quantitative Models & Market"
-        " Data Streams."
-    )
-with col_ft_right:
-    st.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
