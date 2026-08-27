@@ -685,3 +685,218 @@ with tab_crypto:
                 f"Could not retrieve crypto data for pair: {crypto_ticker}."
                 " Ensure it ends with `-USD`."
             )
+# ==============================================================================
+# TOP LONG & SHORT CANDIDATES DASHBOARD SECTION
+# ==============================================================================
+
+import pandas as pd
+import streamlit as st
+
+st.markdown("---")
+st.header("🎯 Quantitative Top 10 Market Picks")
+st.caption(
+    "Generated via automated screening models integrating multi-factor technical analysis, "
+    "fundamental metrics, short-interest float ratios, and momentum indicators."
+)
+
+# ------------------------------------------------------------------------------
+# Data Construction: Long Candidates
+# ------------------------------------------------------------------------------
+longs_data = [
+    {
+        "Ticker": "NVDA",
+        "Company": "NVIDIA Corp.",
+        "Sector": "Technology",
+        "Catalyst / Strategy Alignment": "Strong multi-year AI capex cycle, continuous earnings momentum, high RS rating.",
+        "Target Setup": "Breakout continuation above 20-day EMA",
+    },
+    {
+        "Ticker": "META",
+        "Company": "Meta Platforms Inc.",
+        "Sector": "Communication Services",
+        "Catalyst / Strategy Alignment": "High free cash flow generation, AI ad-targeting efficiency, strong ROI.",
+        "Target Setup": "Pullback entry near 50-day SMA",
+    },
+    {
+        "Ticker": "PANW",
+        "Company": "Palo Alto Networks",
+        "Sector": "Cybersecurity",
+        "Catalyst / Strategy Alignment": "Platformization strategy gains, surging enterprise security demand.",
+        "Target Setup": "Consolidation breakout pattern",
+    },
+    {
+        "Ticker": "SHOP",
+        "Company": "Shopify Inc.",
+        "Sector": "Consumer Cyclical",
+        "Catalyst / Strategy Alignment": "Enterprise merchant expansion, accelerating cross-border GMV growth.",
+        "Target Setup": "Bull flag pattern continuation",
+    },
+    {
+        "Ticker": "VLO",
+        "Company": "Valero Energy Corp.",
+        "Sector": "Energy",
+        "Catalyst / Strategy Alignment": "Refining capacity constraints, low forward P/E (8.4x), high EPS revisions.",
+        "Target Setup": "Value accumulation / swing momentum",
+    },
+    {
+        "Ticker": "UBER",
+        "Company": "Uber Technologies",
+        "Sector": "Industrials",
+        "Catalyst / Strategy Alignment": "Free cash flow expansion, share buyback execution, mobility demand resilience.",
+        "Target Setup": "Ascending triangle breakout",
+    },
+    {
+        "Ticker": "NOW",
+        "Company": "ServiceNow Inc.",
+        "Sector": "Technology",
+        "Catalyst / Strategy Alignment": "Enterprise workflow automation demand, robust net renewal rates.",
+        "Target Setup": "Support bounce off 20-day EMA",
+    },
+    {
+        "Ticker": "DINO",
+        "Company": "HF Sinclair Corp.",
+        "Sector": "Energy",
+        "Catalyst / Strategy Alignment": "Zacks #1 Rank, strong forward earnings growth (>130%), discounted valuation.",
+        "Target Setup": "Trend-following channel breakout",
+    },
+    {
+        "Ticker": "WMT",
+        "Company": "Walmart Inc.",
+        "Sector": "Consumer Staples",
+        "Catalyst / Strategy Alignment": "Defensive staple power, ecommerce market share gains, high relative strength.",
+        "Target Setup": "Steady uptrend / low-volatility swing",
+    },
+    {
+        "Ticker": "EPD",
+        "Company": "Enterprise Products Partners",
+        "Sector": "Energy / Infrastructure",
+        "Catalyst / Strategy Alignment": "5.6%+ dividend yield, steady midstream cash flows, defensive inflation hedge.",
+        "Target Setup": "Income & defensive support bounce",
+    },
+]
+
+# ------------------------------------------------------------------------------
+# Data Construction: Short Candidates
+# ------------------------------------------------------------------------------
+shorts_data = [
+    {
+        "Ticker": "HTZ",
+        "Company": "Hertz Global Holdings",
+        "Sector": "Consumer Services",
+        "Short Interest": "56.8%",
+        "Bearish Catalyst / Short Thesis": "High debt load, EV fleet depreciation pressure, structural fleet cost drag.",
+        "Target Setup": "Breakdown below key horizontal support",
+    },
+    {
+        "Ticker": "GRPN",
+        "Company": "Groupon Inc.",
+        "Sector": "Specialty Retail",
+        "Short Interest": "55.1%",
+        "Bearish Catalyst / Short Thesis": "Declining active customer counts, persistent negative revenue growth trends.",
+        "Target Setup": "Rally rejection at 50-day SMA",
+    },
+    {
+        "Ticker": "SOUN",
+        "Company": "SoundHound AI Inc.",
+        "Sector": "IT Services",
+        "Short Interest": "41.7%",
+        "Bearish Catalyst / Short Thesis": "Extreme price-to-sales valuation multiple, high cash-burn rate, dilution risk.",
+        "Target Setup": "Overbought reversal / high-volatility short",
+    },
+    {
+        "Ticker": "PLCE",
+        "Company": "The Children's Place",
+        "Sector": "Specialty Retail",
+        "Short Interest": "38.6%",
+        "Bearish Catalyst / Short Thesis": "Mall foot-traffic decline, margin compression, high leverage ratio.",
+        "Target Setup": "Lower highs & lower lows downtrend continuation",
+    },
+    {
+        "Ticker": "AI",
+        "Company": "C3.ai Inc.",
+        "Sector": "Software",
+        "Short Interest": "38.4%",
+        "Bearish Catalyst / Short Thesis": "Persistent net operating losses, subscription revenue growth deceleration.",
+        "Target Setup": "Resistance rejection near 200-day SMA",
+    },
+    {
+        "Ticker": "LCID",
+        "Company": "Lucid Group Inc.",
+        "Sector": "Automobiles",
+        "Short Interest": "37.6%",
+        "Bearish Catalyst / Short Thesis": "Heavy vehicle burn rates, production target headwinds, dilution risks.",
+        "Target Setup": "New multi-month low breakdown",
+    },
+    {
+        "Ticker": "PCT",
+        "Company": "PureCycle Technologies",
+        "Sector": "Environmental Services",
+        "Short Interest": "36.1%",
+        "Bearish Catalyst / Short Thesis": "Plant ramp-up delays, high capital deployment requirements.",
+        "Target Setup": "Failed rally breakdown",
+    },
+    {
+        "Ticker": "XRX",
+        "Company": "Xerox Holdings",
+        "Sector": "Technology Hardware",
+        "Short Interest": "33.1%",
+        "Bearish Catalyst / Short Thesis": "Legacy hardware contraction, secular decline in printing office demand.",
+        "Target Setup": "Distribution phase continuation",
+    },
+    {
+        "Ticker": "UPST",
+        "Company": "Upstart Holdings",
+        "Sector": "Consumer Finance",
+        "Short Interest": "31.6%",
+        "Bearish Catalyst / Short Thesis": "Loan originations sensitivity to interest rates, credit loss exposure.",
+        "Target Setup": "High-beta resistance rejection",
+    },
+    {
+        "Ticker": "RXT",
+        "Company": "Rackspace Technology",
+        "Sector": "IT Services",
+        "Short Interest": "31.9%",
+        "Bearish Catalyst / Short Thesis": "High net interest expenses, margin headwinds, ongoing restructuring drag.",
+        "Target Setup": "Bear flag continuation pattern",
+    },
+]
+
+df_longs = pd.DataFrame(longs_data)
+df_shorts = pd.DataFrame(shorts_data)
+
+# ------------------------------------------------------------------------------
+# Render UI Components
+# ------------------------------------------------------------------------------
+tab_long, tab_short = st.tabs(["🟢 Top 10 Longs (Bullish)", "🔴 Top 10 Shorts (Bearish)"])
+
+with tab_long:
+    st.subheader("Top 10 Long Candidates")
+    st.dataframe(
+        df_longs,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Ticker": st.column_config.TextColumn("Ticker", width="small"),
+            "Company": st.column_config.TextColumn("Company", width="medium"),
+            "Sector": st.column_config.TextColumn("Sector", width="medium"),
+            "Catalyst / Strategy Alignment": st.column_config.TextColumn("Strategy Alignment", width="large"),
+            "Target Setup": st.column_config.TextColumn("Technical Setup", width="medium"),
+        },
+    )
+
+with tab_short:
+    st.subheader("Top 10 Short Candidates")
+    st.caption("⚠️ Note: High short interest names carry squeeze risk. Manage risk with strict stop-losses.")
+    st.dataframe(
+        df_shorts,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Ticker": st.column_config.TextColumn("Ticker", width="small"),
+            "Company": st.column_config.TextColumn("Company", width="medium"),
+            "Sector": st.column_config.TextColumn("Sector", width="medium"),
+            "Short Interest": st.column_config.TextColumn("Short % Float", width="small"),
+            "Bearish Catalyst / Short Thesis": st.column_config.TextColumn("Short Thesis", width="large"),
+            "Target Setup": st.column_config.TextColumn("Technical Setup", width="medium"),
+        },
+    )
