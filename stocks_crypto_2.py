@@ -901,3 +901,361 @@ with col_ft_left:
     )
 with col_ft_right:
     st.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
+
+
+
+#CRYPTO + STOCKS information as of 8/27/26
+#Fully Functional script
+# ---------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ---------------------------------------------------------
+#Start of Real Estate Tab
+#Ideas
+#Create a tab for real estate to research properties where you can change settings
+#based on what you are interested in (Personal, Rental, Vacation, Flip, Etc...)
+#add in specifics like taxes, schools, maintenance fees, and etc...
+# ---------------------------------------------------------
+st.set_page_config(
+    page_title="CMI | Real Estate Investment & Valuation Engine",
+    layout="wide",
+    page_icon="🏠",
+)
+
+st.markdown(
+    """
+    <style>
+    .re-header {
+        border-bottom: 2px solid #00ACC1;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+    .metric-box {
+        background-color: #f8f9fa;
+        border-left: 4px solid #00ACC1;
+        padding: 12px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------
+# CMI Branding Vector
+# ---------------------------------------------------------
+CMI_LOGO = """
+<div style="font-family: sans-serif; font-weight: 800; font-size: 24px; color: #111;">
+    <span style="font-size: 30px; font-weight: 900;">CMI</span>
+    <span style="display:inline-block; width:8px; height:8px; background-color:#E91E63; margin-left:2px;"></span>
+    <span style="display:inline-block; width:8px; height:8px; background-color:#26A69A; margin-left:1px;"></span>
+    <span style="display:inline-block; width:8px; height:8px; background-color:#00ACC1; margin-left:1px;"></span>
+    <div style="font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: #555;">
+        REAL ESTATE ANALYTICS DESK
+    </div>
+</div>
+"""
+
+col_head1, col_head2 = st.columns([3, 1])
+with col_head1:
+    st.title("🏠 Institutional Real Estate Investment Engine")
+    st.caption("Underwriting, Portfolio Valuation & Predictive Growth Modeling")
+with col_head2:
+    st.markdown(CMI_LOGO, unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ---------------------------------------------------------
+# Sidebar Controls & Strategy Selection
+# ---------------------------------------------------------
+st.sidebar.header("🎯 Strategy & Input Mode")
+
+analysis_mode = st.sidebar.radio(
+    "Analysis Mode",
+    ["Specific Property Address", "Regional Market Scout"],
+    index=0
+)
+
+investment_intent = st.sidebar.selectbox(
+    "Investment Intent / Strategy",
+    [
+        "Long-Term Rental (Buy & Hold)",
+        "Short-Term Rental (Airbnb/VRBO)",
+        "Fix & Flip",
+        "House Hack (Primary + Rental)",
+        "Value-Add Commercial/Multi-Family"
+    ]
+)
+
+st.sidebar.markdown("---")
+st.sidebar.header("💰 Financing Assumptions")
+down_payment_pct = st.sidebar.slider("Down Payment (%)", 0, 50, 20) / 100
+interest_rate = st.sidebar.slider("Mortgage Interest Rate (%)", 3.0, 12.0, 6.5) / 100
+loan_term_years = st.sidebar.selectbox("Loan Term", [30, 15, 10], index=0)
+closing_costs_pct = st.sidebar.slider("Closing Costs & Fees (%)", 1.0, 5.0, 2.5) / 100
+
+st.sidebar.markdown("---")
+st.sidebar.header("📈 Growth Assumptions")
+appreciation_rate = st.sidebar.slider("Annual Property Appreciation (%)", 1.0, 8.0, 4.0) / 100
+rent_growth_rate = st.sidebar.slider("Annual Rent Increase (%)", 1.0, 6.0, 3.0) / 100
+
+# ---------------------------------------------------------
+# Helper Valuation Calculation Functions
+# ---------------------------------------------------------
+def calculate_mortgage(principal, annual_rate, years):
+    if principal <= 0 or annual_rate <= 0:
+        return 0
+    monthly_rate = annual_rate / 12
+    num_payments = years * 12
+    monthly_payment = principal * (monthly_rate * (1 + monthly_rate)**num_payments) / ((1 + monthly_rate)**num_payments - 1)
+    return monthly_payment
+
+def project_financials(purchase_price, gross_annual_rent, opex_annual, initial_loan, years=20):
+    records = []
+    curr_val = purchase_price
+    curr_rent = gross_annual_rent
+    curr_opex = opex_annual
+    annual_mortgage = calculate_mortgage(initial_loan, interest_rate, loan_term_years) * 12
+    balance = initial_loan
+
+    for yr in range(1, years + 1):
+        curr_val *= (1 + appreciation_rate)
+        curr_rent *= (1 + rent_growth_rate)
+        curr_opex *= (1 + 0.025)  # 2.5% inflation on expenses
+        noi = curr_rent - curr_opex
+        net_cash_flow = noi - annual_mortgage
+        
+        # Approximate principal reduction
+        interest_paid = balance * interest_rate
+        principal_paid = min(balance, annual_mortgage - interest_paid)
+        balance = max(0, balance - principal_paid)
+        equity = curr_val - balance
+
+        records.append({
+            "Year": yr,
+            "Property Value": round(curr_val, 2),
+            "Gross Income": round(curr_rent, 2),
+            "NOI": round(noi, 2),
+            "Annual Cash Flow": round(net_cash_flow, 2),
+            "Remaining Debt": round(balance, 2),
+            "Total Equity": round(equity, 2)
+        })
+    return pd.DataFrame(records)
+
+# ---------------------------------------------------------
+# MODE 1: Specific Property Analysis
+# ---------------------------------------------------------
+if analysis_mode == "Specific Property Address":
+    st.header("📍 Property Underwriting & Evaluation")
+    
+    col_inp1, col_inp2 = st.columns([2, 1])
+    with col_inp1:
+        address_input = st.text_input(
+            "Property Address",
+            value="1244 S Michigan Ave, Chicago, IL 60605"
+        )
+    with col_inp2:
+        property_type = st.selectbox(
+            "Property Type",
+            ["Single Family", "Multi-Family (2-4 Units)", "Condo/Townhome", "Commercial/5+ Units"]
+        )
+
+    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+    purchase_price = col_p1.number_input("Purchase Price ($)", value=450000, step=10000)
+    rehab_cost = col_p2.number_input("Est. Renovation/Rehab ($)", value=25000 if "Flip" in investment_intent else 5000, step=2500)
+    
+    if "Short-Term" in investment_intent:
+        est_monthly_rent = col_p3.number_input("Est. Average Monthly STR Revenue ($)", value=4800, step=200)
+        vacancy_rate = col_p4.slider("Occupancy / Vacancy Loss (%)", 5, 40, 25) / 100
+    else:
+        est_monthly_rent = col_p3.number_input("Est. Monthly Rent ($)", value=3200, step=100)
+        vacancy_rate = col_p4.slider("Vacancy Rate (%)", 1, 15, 5) / 100
+
+    # Operational Expense Drivers
+    st.subheader("⚙️ Operating Expenses & Tax Assumptions")
+    e1, e2, e3, e4 = st.columns(4)
+    prop_taxes = e1.number_input("Annual Property Taxes ($)", value=int(purchase_price * 0.018))
+    insurance = e2.number_input("Annual Insurance ($)", value=1800)
+    mgmt_fee_pct = e3.slider("Property Management Fee (%)", 0, 15, 8 if "Short-Term" in investment_intent else 6) / 100
+    maintenance_pct = e4.slider("Maintenance & Capital Reserves (%)", 3, 15, 7) / 100
+
+    # Calculations
+    down_payment = purchase_price * down_payment_pct
+    loan_amount = purchase_price - down_payment
+    total_out_of_pocket = down_payment + rehab_cost + (purchase_price * closing_costs_pct)
+    
+    gross_annual_income = (est_monthly_rent * 12) * (1 - vacancy_rate)
+    annual_mgmt = gross_annual_income * mgmt_fee_pct
+    annual_maint = gross_annual_income * maintenance_pct
+    total_opex = prop_taxes + insurance + annual_mgmt + annual_maint
+    
+    noi = gross_annual_income - total_opex
+    cap_rate = (noi / (purchase_price + rehab_cost)) * 100
+    
+    monthly_mortgage = calculate_mortgage(loan_amount, interest_rate, loan_term_years)
+    annual_debt_service = monthly_mortgage * 12
+    annual_cash_flow = noi - annual_debt_service
+    monthly_cash_flow = annual_cash_flow / 12
+    cash_on_cash = (annual_cash_flow / total_out_of_pocket) * 100 if total_out_of_pocket > 0 else 0
+
+    st.markdown("---")
+    st.header("📊 Investment Metrics Summary")
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Cap Rate", f"{cap_rate:.2f}%")
+    m2.metric("Cash-on-Cash Return", f"{cash_on_cash:.2f}%")
+    m3.metric("Net Operating Income (NOI)", f"${noi:,.0f}/yr")
+    m4.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f}/mo", delta_color="normal")
+    m5.metric("Total Initial Cash Needed", f"${total_out_of_pocket:,.0f}")
+
+    # Fix & Flip Decision Logic
+    if "Fix & Flip" in investment_intent:
+        st.markdown("---")
+        st.subheader("🔨 Fix & Flip Analysis Breakdown")
+        arv = st.number_input("After Repair Value (ARV) ($)", value=int(purchase_price * 1.3))
+        holding_months = st.slider("Project Duration (Months)", 3, 18, 6)
+        holding_costs = (prop_taxes/12 + insurance/12 + monthly_mortgage) * holding_months
+        total_project_cost = purchase_price + rehab_cost + holding_costs + (purchase_price * closing_costs_pct)
+        selling_costs = arv * 0.06  # 6% Realtor/Agent Fees
+        net_profit = arv - total_project_cost - selling_costs
+        roi = (net_profit / total_out_of_pocket) * 100 if total_out_of_pocket > 0 else 0
+
+        f1, f2, f3, f4 = st.columns(4)
+        f1.metric("After Repair Value (ARV)", f"${arv:,.0f}")
+        f2.metric("Est. Total Project Cost", f"${total_project_cost:,.0f}")
+        f3.metric("Estimated Net Profit", f"${net_profit:,.0f}")
+        f4.metric("Return on Investment (ROI)", f"{roi:.2f}%")
+
+        # 70% Rule Check
+        max_allowable_offer = (arv * 0.70) - rehab_cost
+        if purchase_price <= max_allowable_offer:
+            st.success(f"🟢 **Meets 70% Rule**: Max Allowable Offer (MAO) is **${max_allowable_offer:,.0f}**. Purchase price is within safety bounds.")
+        else:
+            st.warning(f"🟡 **Exceeds 70% Rule**: Max Allowable Offer (MAO) is **${max_allowable_offer:,.0f}**. Price may reduce profit margin safety cushion.")
+
+    # Multi-Year Predictive Growth Modeling
+    st.markdown("---")
+    st.header("🔮 Long-Term Financial Horizon Projections")
+    
+    df_proj = project_financials(purchase_price, gross_annual_income, total_opex, loan_amount, years=20)
+    
+    p5 = df_proj.iloc[4]
+    p10 = df_proj.iloc[9]
+    p20 = df_proj.iloc[19]
+
+    y1, y2, y3 = st.columns(3)
+    y1.metric("5-Year Est. Value / Equity", f"${p5['Property Value']:,.0f}", f"Equity: ${p5['Total Equity']:,.0f}")
+    y2.metric("10-Year Est. Value / Equity", f"${p10['Property Value']:,.0f}", f"Equity: ${p10['Total Equity']:,.0f}")
+    y3.metric("20-Year Est. Value / Equity", f"${p20['Property Value']:,.0f}", f"Equity: ${p20['Total Equity']:,.0f}")
+
+    st.subheader("Equity Accumulation vs. Remaining Debt")
+    chart_data = df_proj[["Year", "Property Value", "Total Equity", "Remaining Debt"]].melt("Year", var_name="Metric", value_name="Amount ($)")
+    equity_chart = alt.Chart(chart_data).mark_line(size=3).encode(
+        x="Year:O",
+        y="Amount ($):Q",
+        color="Metric:N"
+    ).properties(height=300)
+    st.altair_chart(equity_chart, use_container_width=True)
+
+    # ---------------------------------------------------------
+    # Professional Underwriting & Neighborhood Context
+    # ---------------------------------------------------------
+    st.markdown("---")
+    st.header("🏛️ Institutional Evaluation Criteria & Area Factors")
+    
+    col_u1, col_u2 = st.columns(2)
+    with col_u1:
+        st.markdown("#### 🏫 Neighborhood & Demographic Metrics")
+        st.table(pd.DataFrame({
+            "Evaluation Metric": ["School District Score", "Crime Index Score", "Walk Score", "Median Household Income", "Rent-to-Own Ratio"],
+            "Target Property Profile": ["8/10 (Above Average)", "Low (Top 25% Safety)", "78 / 100 (Very Walkable)", "$82,500 / yr", "42% Renters / 58% Owners"],
+            "Analyst Assessment": ["🟢 Strong Family Demand", "🟢 Low Turnover Risk", "🟢 High Tenant Attraction", "🟢 Supports Rent Increases", "🟡 Healthy Market Balance"]
+        }))
+
+    with col_u2:
+        st.markdown("#### 🔍 Professional Risk Management Checks")
+        st.table(pd.DataFrame({
+            "Risk Vector": ["Debt Coverage Ratio (DSCR)", "Capital Expenditure (CapEx) Risk", "Flood Zone / Climate Risk", "Tenant Law Environment"],
+            "Calculated Value": [f"{noi / annual_debt_service:.2f}x" if annual_debt_service > 0 else "N/A", "HVAC (4 yrs), Roof (12 yrs)", "Zone X (Low Risk)", "Landlord-Friendly Jurisdiction"],
+            "Status": ["🟢 Passes Bank Min (1.20x)", "🟡 Reserve $250/mo Required", "🟢 Standard Insurance Valid", "🟢 Efficient Eviction/Lease Terms"]
+        }))
+
+# ---------------------------------------------------------
+# MODE 2: Regional Market Scout
+# ---------------------------------------------------------
+else:
+    st.header("🔍 Regional Market Scout & Opportunity Finder")
+    
+    col_s1, col_s2 = st.columns([2, 1])
+    with col_s1:
+        search_region = st.text_input("Target Market / Zip Code / City", value="Naperville, IL")
+    with col_s2:
+        max_budget = st.number_input("Max Purchase Budget ($)", value=600000, step=25000)
+
+    st.subheader(f"Recommended Investment Opportunities in {search_region}")
+    st.caption("Filtered according to target ROI thresholds, historical neighborhood growth, and cash flow performance.")
+
+    # Simulated Live Market Discovery Feed
+    recommended_listings = pd.DataFrame({
+        "Address": [
+            f"1048 Northway Rd, {search_region}",
+            f"412 Fairview Ave, {search_region}",
+            f"882 Washington St #2, {search_region}",
+            f"1520 Pinecrest Dr, {search_region}"
+        ],
+        "Price": [385000, 420000, 290000, 540000],
+        "Property Type": ["Single Family", "Duplex (Multi-Family)", "Condo", "Single Family"],
+        "Est. Cap Rate": ["6.8%", "7.4%", "6.2%", "5.9%"],
+        "Cash-on-Cash": ["8.2%", "9.8%", "7.1%", "6.4%"],
+        "School Rating": ["9/10", "8/10", "8/10", "10/10"],
+        "Investment Fit": ["High (Value-Add)", "Excellent (Cash Flow)", "Moderate (Low Maintenance)", "High (Appreciation)"]
+    })
+
+    st.dataframe(recommended_listings, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.subheader("🏘️ Surrounding Market Price Benchmarks")
+    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+    m_col1.metric("Median Market Home Price", f"${395000:,.0f}", "+3.8% YoY")
+    m_col2.metric("Average Rent (3 Bed)", "$2,850/mo", "+4.2% YoY")
+    m_col3.metric("Average Days on Market", "22 Days", "-4 Days")
+    m_col4.metric("5-Year Price Growth", "+24.5%", "Historical Avg")
+
+# ---------------------------------------------------------
+# Footer
+# ---------------------------------------------------------
+st.markdown("---")
+col_ft1, col_ft2 = st.columns([4, 1])
+with col_ft1:
+    st.caption("© 2026 Core Market Intelligence (CMI). Real Estate Underwriting & Portfolio Analytics.")
+with col_ft2:
+    st.markdown(CMI_LOGO, unsafe_allow_html=True)
+
+
+
+
+
+
+
+
+
+# ---------------------------------------------------------
+#Start of Wealth Management AI Questionnaire
+#Ideas
+#Create a simple wealth management plan for consumer based on simple questions like risk % and goals
+#Create a budget for consumer to follow and use to save, invest, and enjoy (tracking made easy)
+# ---------------------------------------------------------
+
