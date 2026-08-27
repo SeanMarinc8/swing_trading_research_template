@@ -714,9 +714,11 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
 
 
 # ---------------------------------------------------------
-# App Layout: Stocks vs Crypto
+# MAIN TABBED NAVIGATION (Stock | Crypto | Real Estate)
 # ---------------------------------------------------------
-tab_stocks, tab_crypto = st.tabs(["📊 Stock Scanner", "🪙 Crypto Scanner"])
+tab_stocks, tab_crypto, tab_real_estate = st.tabs(
+    ["📊 Stock Scanner", "🪙 Crypto Scanner", "🏠 Real Estate Evaluation"]
+)
 
 # TAB 1: STOCKS (Default: NVDA)
 with tab_stocks:
