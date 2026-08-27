@@ -29,8 +29,8 @@ with st.sidebar.expander(
         * Price **above VWAP** = Buyers are in control (Bullish).
         * Price **below VWAP** = Sellers are in control (Bearish).
     * **SMA 20 & 50 (Simple Moving Averages):** Smooth lines showing 20-day or 50-day average price trends.
-    * **Bollinger Bands (%B):** Volatility envelopes around price. Upper = Resistance, Lower = Support.
-    * **MACD Hist (Histogram):** Green bars = Buying momentum; Red bars = Selling momentum.
+    * **Bollinger Bands (%B):** Volatility envelopes around price. Touching the top band means price is high; bottom band means price is low.
+    * **MACD Hist (Histogram):** Shows whether buying or selling momentum is speeding up or slowing down.
     * **ATR (Average True Range):** The expected daily dollar swing size (helps set realistic stop losses).
     * **RVOL (Relative Volume):** Compares today's volume to normal volume (`>1.5x` means institutional big money is moving the stock).
     """)
@@ -56,8 +56,10 @@ def compute_all_indicators(df):
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     df["RSI"] = 100 - (100 / (1 + rs))
+    df["Overbought (70)"] = 70
+    df["Oversold (30)"] = 30
 
-    # Bollinger Bands
+    # Bollinger Bands (%B & Width)
     std_20 = df["Close"].rolling(window=20).std()
     df["BB_Upper"] = df["SMA_20"] + (std_20 * 2)
     df["BB_Lower"] = df["SMA_20"] - (std_20 * 2)
@@ -85,9 +87,9 @@ def compute_all_indicators(df):
 
 
 # ---------------------------------------------------------
-# Advanced Predictive Model Engine
+# Predictive Model Engine
 # ---------------------------------------------------------
-def generate_predictive_model(df, forecast_days=15):
+def generate_predictive_model(df, forecast_days=10):
     latest = df.iloc[-1]
     close = latest["Close"]
     atr = latest["ATR"] if pd.notnull(latest["ATR"]) else close * 0.03
@@ -95,10 +97,12 @@ def generate_predictive_model(df, forecast_days=15):
     macd_hist = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
     vwap = latest["VWAP"] if pd.notnull(latest["VWAP"]) else close
 
+    # Linear slope of last 14 sessions
     recent_closes = df["Close"].tail(14).values
     x = np.arange(len(recent_closes))
     slope, _ = np.polyfit(x, recent_closes, 1)
 
+    # Momentum weighting
     momentum_modifier = 1.0
     if macd_hist > 0:
         momentum_modifier += 0.25
@@ -117,6 +121,7 @@ def generate_predictive_model(df, forecast_days=15):
 
     daily_vector = (slope * 0.5) + (macd_hist * 0.15 * momentum_modifier)
 
+    # Forward projections
     last_date = df.index[-1]
     future_dates = [
         last_date + timedelta(days=i + 1) for i in range(forecast_days)
@@ -153,10 +158,12 @@ def generate_predictive_model(df, forecast_days=15):
 
 
 # ---------------------------------------------------------
-# News Feed Helper
+# News Feed Helper with Built-In (GOOD) / (BAD) Sentiment Tagging
 # ---------------------------------------------------------
 def analyze_headline_sentiment(title):
+    """Simple keyword sentiment tagger for financial headlines."""
     title_lower = title.lower()
+
     bullish_keywords = [
         "beat",
         "surged",
@@ -220,6 +227,7 @@ def analyze_headline_sentiment(title):
 def render_news_feed(ticker_obj, ticker_name):
     st.markdown("---")
     st.header(f"📰 Recent Market News & Headline Sentiment ({ticker_name})")
+
     try:
         news_items = ticker_obj.news
         valid_articles = 0
@@ -231,6 +239,7 @@ def render_news_feed(ticker_obj, ticker_name):
                     else item
                 )
                 title = content.get("title") or item.get("title")
+
                 link = item.get("link") or content.get("link")
                 if (
                     not link
@@ -270,14 +279,55 @@ def render_news_feed(ticker_obj, ticker_name):
 
 
 # ---------------------------------------------------------
+# Proven Trading Strategies Guide (Easy for Beginners)
+# ---------------------------------------------------------
+def render_trading_strategies_guide():
+    with st.expander(
+        "💡 Easy Proven Trading Strategies (How to use this dashboard)",
+        expanded=False,
+    ):
+        st.markdown("""
+        ### Strategy 1: The "Institutional VWAP Bounce" (Best for Trend Buyers)
+        * **Goal:** Buy high-quality stocks at a wholesale discount price when big institutional buyers step in.
+        * **How to Spot It:**
+            1. Look for the **Actionable Trade Recommendation** to show **LEAN BUY** or **BUY**.
+            2. Check the **Price Action vs. VWAP chart**. Wait until the current price drops close to or touches the **VWAP line**.
+            3. Verify that **RVOL** is above `1.2x` (meaning big volume is present).
+            4. **Action:** Buy near VWAP. Place your Stop Loss slightly below the 50-day SMA.
+
+        ---
+
+        ### Strategy 2: The "RSI Bargain Hunter" (Best for Rebound Trades)
+        * **Goal:** Catch quick market bounces when a stock has been oversold and beaten down too hard.
+        * **How to Spot It:**
+            1. Check the **RSI Momentum chart**. Look for RSI dropping below **30** (Oversold).
+            2. Check the **Bollinger %B**. Price should be near or below `0.00` (touching the lower band).
+            3. Look at the **News Feed**: If news is tagged 🟢 **(GOOD NEWS)** or ⚪ **(NEUTRAL)** while price is oversold, it signals an overreaction drop.
+            4. **Action:** Buy when RSI crosses back *above* 30. Use the **Optimal Buy Target** metric as your entry anchor.
+
+        ---
+
+        ### Strategy 3: The "Breakout Velocity" (Best for Momentum Traders)
+        * **Goal:** Ride fast moving stocks as momentum accelerates.
+        * **How to Spot It:**
+            1. Look at the **MACD Histogram**. The bars should be green and growing taller.
+            2. **RVOL** should be `> 1.5x` (heavy buying volume).
+            3. Price should be trading comfortably **above VWAP** and the **20-period SMA**.
+            4. **Action:** Ride the trend until price touches the upper **Bollinger Band** or the **Take Profit Target**, then lock in gains.
+        """)
+
+
+# ---------------------------------------------------------
 # Main UI Dashboard Renderer
 # ---------------------------------------------------------
 def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     latest = df.iloc[-1]
     prev = df.iloc[-2]
+
+    # Format Precision Setup
     fmt = "{:,.3f}" if asset_type == "Crypto" else "{:,.2f}"
 
-    # Metrics Row
+    # Top Metrics Row
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric(
         "Current Price",
@@ -309,8 +359,11 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
         f"${fmt.format(latest['ATR'])}" if pd.notnull(latest["ATR"]) else "N/A",
     )
 
-    # Action Recommendation
+    # ---------------------------------------------------------
+    # Action Recommendation & Lean Guidance
+    # ---------------------------------------------------------
     st.subheader("🚦 Actionable Trade Recommendation")
+
     bull_points = 0
     bear_points = 0
 
@@ -334,12 +387,14 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     if bull_points >= 4:
         st.success(
             "🟢 **EXECUTIVE ACTION: BUY / ACCUMULATE NOW**\n\n"
-            "**Why:** Strong confluence of bullish signals. Price is supported by VWAP/20-SMA with positive MACD momentum."
+            "**Why:** Strong confluence of bullish signals. Price is supported"
+            " by VWAP/20-SMA with positive MACD momentum and room for RSI expansion."
         )
     elif bear_points >= 4:
         st.error(
             "🔴 **EXECUTIVE ACTION: SELL / TAKE PROFITS NOW**\n\n"
-            "**Why:** Heavy overhead resistance detected. Asset is trading below VWAP baseline with decelerating momentum."
+            "**Why:** Heavy overhead resistance detected. Asset is trading below"
+            " VWAP baseline with decelerating MACD momentum or overbought RSI."
         )
     else:
         st.warning(
@@ -347,16 +402,40 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
             "**Why:** Indicators are showing a tug-of-war between buyers and sellers. Momentum is neutral or consolidating."
         )
 
-    # 1. Price vs VWAP Chart
+        # -----------------------------------------------------
+        # Lean Direction Breakdown (What to lean toward)
+        # -----------------------------------------------------
+        lean_direction = "BUY" if bull_points >= bear_points else "SELL"
+        lean_color = "🟢" if lean_direction == "BUY" else "🔴"
+
+        with st.container():
+            st.markdown(
+                f"#### {lean_color} **If You Had to Act: LEAN {lean_direction}**"
+            )
+
+            if lean_direction == "BUY":
+                st.markdown(f"""
+                * **Model Direction:** The data leans **BUY** on a small price pullback rather than selling out.
+                * **Why It Leans Buy:** The price is staying above its 20-day trend line (`${fmt.format(latest['SMA_20'])}`), meaning buyers are still protecting dips.
+                * **What to Wait For:** Don't jump in immediately. Wait for the price to drop slightly closer to lower support (`${fmt.format(latest['BB_Lower'])}`) or for volume (RVOL) to spike before buying.
+                """)
+            else:
+                st.markdown(f"""
+                * **Model Direction:** The data leans **SELL / DE-RISK** on any short-term rally rather than buying new shares.
+                * **Why It Leans Sell:** The price is dragging below the institutional VWAP line (`${fmt.format(latest['VWAP'])}`), showing that big money is quietly taking profits or selling off.
+                * **What to Wait For:** If you hold this stock, consider setting a tight stop loss or locking in partial profits if price fails to jump above the 20-day moving average (`${fmt.format(latest['SMA_20'])}`).
+                """)
+
+    # Render Easy Trading Strategies Guide
+    render_trading_strategies_guide()
+
+    # Technical Charts
     st.subheader(f"Price Action vs. VWAP & Volatility Bands ({ticker_name})")
-    chart_data = df[["Close", "VWAP", "BB_Upper", "BB_Lower"]].dropna()
-    st.line_chart(chart_data)
+    st.line_chart(df[["Close", "VWAP", "BB_Upper", "BB_Lower"]].dropna())
 
-    # 2. RSI Chart
-    st.subheader("RSI Momentum (14-Period)")
-    st.line_chart(df[["RSI"]].dropna())
+    st.subheader("RSI Momentum & Overbought/Oversold Bounds")
+    st.line_chart(df[["RSI", "Overbought (70)", "Oversold (30)"]].dropna())
 
-    # 3. MACD Colored Histogram using Altair
     st.subheader(
         "MACD Momentum Acceleration (Green = Bullish Momentum | Red = Bearish Momentum)"
     )
@@ -377,78 +456,183 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
                     domain=["Bullish (Green)", "Bearish (Red)"],
                     range=["#22C55E", "#EF4444"],
                 ),
+                legend=alt.Legend(title="Momentum"),
             ),
         )
         .properties(height=250)
     )
     st.altair_chart(macd_chart, use_container_width=True)
 
-    # 4. Predictive Trajectory Model
-    st.markdown("---")
-    st.header("🔮 Interactive Predictive Trajectory & Target Levels")
+    # ---------------------------------------------------------
+    # Predictive Analytics & Targets
+    # ---------------------------------------------------------
+    forecast_df, buy_target, sell_target, stop_loss, daily_vector = (
+        generate_predictive_model(df)
+    )
 
-    forecast_days = st.slider(
-        "Adjust Forecast Horizon (Days):",
-        min_value=5,
-        max_value=60,
-        value=15,
-        key=f"slider_{ticker_name}",
-    )
-    forecast_df_custom, buy_t, sell_t, stop_l, d_vec = generate_predictive_model(
-        df, forecast_days=forecast_days
-    )
+    st.markdown("---")
+    st.header("🔮 10-Period Predictive Trajectory & Target Levels")
+
+    with st.expander("ℹ️ How This Predictive Forecast Works", expanded=True):
+        st.markdown("""
+            This engine forecasts where the price is likely headed over the next 10 periods by combining 5 main clues:
+            1. **Current Trend Slope:** Is price naturally trending up or down over the last 14 days?
+            2. **MACD Speed:** Is buying/selling momentum speeding up or slowing down?
+            3. **RSI Guardrails:** Prevents forecasting extreme rallies if the stock is already overbought.
+            4. **VWAP Magnet:** Adjusts expected direction depending on whether price is above or below institutional average price.
+            5. **ATR Risk Spread:** Calculates upper and lower price bands based on typical daily volatility.
+            """)
 
     t1, t2, t3, t4 = st.columns(4)
-    t1.metric("Optimal Buy Target", f"${fmt.format(buy_t)}")
-    t2.metric("Take Profit Target", f"${fmt.format(sell_t)}")
-    t3.metric("Recommended Stop Loss", f"${fmt.format(stop_l)}")
-    t4.metric("Projected Change Per Period", f"${fmt.format(d_vec)}/period")
+    t1.metric("Optimal Buy Target", f"${fmt.format(buy_target)}")
+    t2.metric("Take Profit Target", f"${fmt.format(sell_target)}")
+    t3.metric("Recommended Stop Loss", f"${fmt.format(stop_loss)}")
+    t4.metric(
+        "Projected Change Per Period", f"${fmt.format(daily_vector)}/period"
+    )
 
-    pred_chart_data = forecast_df_custom[
-        ["Predicted Path", "Upper Target (ATR)", "Lower Support (ATR)"]
-    ]
-    st.line_chart(pred_chart_data)
+    st.subheader("Forecasted Price Path & Confidence Bands")
+    st.line_chart(forecast_df)
 
-    # Quantitative Breakdown Table
+    # ---------------------------------------------------------
+    # Simplified Quantitative Analyst Desk (Easy to Understand)
+    # ---------------------------------------------------------
     st.markdown("---")
     st.header(f"📊 Quantitative Analyst Breakdown ({ticker_name})")
+
     rsi_val = latest["RSI"] if pd.notnull(latest["RSI"]) else 50
     rsi_simple = (
-        "Gaining Strength"
+        "Gaining Strength (Buyers in control)"
         if rsi_val > 55
-        else ("Bargain Zone" if rsi_val < 35 else "Neutral")
+        else (
+            "Bargain Zone (Oversold)"
+            if rsi_val < 35
+            else "Neutral (Fair Value)"
+        )
     )
+
+    bb_width = latest["BB_Width"] if pd.notnull(latest["BB_Width"]) else 0
+    vol_simple = (
+        "Coiled Spring (Big move coming soon)"
+        if bb_width < 0.08
+        else "Normal Volatility"
+    )
+
     rvol_val = latest["RVOL"] if pd.notnull(latest["RVOL"]) else 1.0
+    flow_simple = (
+        "Big Institutional Money Active"
+        if rvol_val > 1.25
+        else "Normal Everyday Trading Volume"
+    )
 
     quant_matrix = pd.DataFrame({
         "Market Metric": [
             "Price Momentum (RSI)",
+            "Price Volatility Squeeze",
             "Trading Volume (RVOL)",
             "Institutional VWAP Line",
         ],
         "Current Reading": [
             f"{rsi_val:.1f} Score",
+            f"Width: {bb_width:.3f}",
             f"{rvol_val:.2f}x Normal",
             f"${fmt.format(latest['VWAP'])} Baseline",
         ],
-        "What It Means": [
+        "What It Means For You": [
             rsi_simple,
-            "High Volume Active" if rvol_val > 1.25 else "Normal Volume",
-            "Bullish (Above Line)"
+            vol_simple,
+            flow_simple,
+            "Price is Healthy (Above Line)"
             if latest["Close"] > latest["VWAP"]
-            else "Bearish (Below Line)",
+            else "Price is Weak (Below Line)",
         ],
     })
+
     st.table(quant_matrix)
 
+    # Simplified Plain-English Synthesis
+    st.subheader("Plain-English Analyst Conclusion")
+    st.markdown(f"""
+    **In Plain English:** When we analyze **{ticker_name}** like a quantitative research analyst, we look past headlines and focus on mathematical clues. Right now, the stock is trading relative to its **Institutional Baseline (VWAP)** of `${fmt.format(latest['VWAP'])}`. 
+
+    * **Volume check:** Trading volume is currently sitting at **{rvol_val:.2f}x** normal levels. {"This means big financial institutions (like hedge funds and mutual funds) are actively moving this asset." if rvol_val > 1.25 else "This means retail volume is dominant and institutions aren't aggressively pushing price right now."}
+    * **Volatility check:** The volatility squeeze reading (`{bb_width:.3f}`) indicates that the price is {"coiling tightly like a spring—get ready for a big breakout move." if bb_width < 0.08 else "moving within its normal expected daily range without crazy unpredictable spikes."}
+    * **Bottom Line:** The safest move for everyday investors is to wait for price to align with the **Optimal Buy Target** (`${fmt.format(buy_target)}`) rather than chasing sudden green candles.
+    """)
+
+    # ---------------------------------------------------------
+    # Financial Statements Section
+    # ---------------------------------------------------------
+    st.markdown("---")
+    st.header("📋 Financial Statements & Fundamental Overview")
+
+    if asset_type == "Stock":
+        try:
+            income_stmt = ticker_obj.financials
+            cash_flow = ticker_obj.cashflow
+
+            if income_stmt is not None and not income_stmt.empty:
+                col_f1, col_f2 = st.columns(2)
+
+                with col_f1:
+                    st.subheader("Income Statement (Annual)")
+                    items_to_show = [
+                        "Total Revenue",
+                        "Gross Profit",
+                        "Operating Income",
+                        "Net Income",
+                    ]
+                    existing_items = [
+                        item
+                        for item in items_to_show
+                        if item in income_stmt.index
+                    ]
+                    st.dataframe(
+                        income_stmt.loc[existing_items],
+                        use_container_width=True,
+                    )
+
+                with col_f2:
+                    st.subheader("Cash Flow Statement (Annual)")
+                    cf_items = [
+                        "Operating Cash Flow",
+                        "Capital Expenditures",
+                        "Free Cash Flow",
+                    ]
+                    existing_cf = [
+                        item for item in cf_items if item in cash_flow.index
+                    ]
+                    if existing_cf:
+                        st.dataframe(
+                            cash_flow.loc[existing_cf], use_container_width=True
+                        )
+                    else:
+                        st.dataframe(
+                            cash_flow.head(5), use_container_width=True
+                        )
+            else:
+                st.info("Financial statements not available for this ticker.")
+        except Exception as e:
+            st.info(f"Could not load financial statements: {e}")
+    else:
+        st.info(
+            "Cryptocurrencies do not publish corporate financial statements"
+            " (Income/Cash Flow). Valuation is based on network activity and unit"
+            " economics."
+        )
+
+    # ---------------------------------------------------------
+    # News Feed Section
+    # ---------------------------------------------------------
     render_news_feed(ticker_obj, ticker_name)
 
 
 # ---------------------------------------------------------
-# Main App Layout
+# App Layout: Stocks vs Crypto
 # ---------------------------------------------------------
 tab_stocks, tab_crypto = st.tabs(["📊 Stock Scanner", "🪙 Crypto Scanner"])
 
+# TAB 1: STOCKS (Default: NVDA)
 with tab_stocks:
     stock_ticker = st.text_input(
         "Enter Stock Ticker", value="NVDA", key="stock_input"
@@ -469,6 +653,7 @@ with tab_stocks:
                 f"Could not retrieve stock data for symbol: {stock_ticker}"
             )
 
+# TAB 2: CRYPTO (Default: BTC-USD)
 with tab_crypto:
     st.caption("Crypto markets trade 24/7. Currency pair ends with `-USD`.")
     crypto_preset = st.selectbox(
@@ -476,13 +661,13 @@ with tab_crypto:
         ["BTC-USD", "ETH-USD", "SOL-USD", "Custom Input"],
         index=0,
     )
-    crypto_ticker = (
-        st.text_input(
+
+    if crypto_preset == "Custom Input":
+        crypto_ticker = st.text_input(
             "Custom Pair (e.g. ADA-USD)", value="ADA-USD", key="crypto_input"
         ).upper()
-        if crypto_preset == "Custom Input"
-        else crypto_preset
-    )
+    else:
+        crypto_ticker = crypto_preset
 
     if crypto_ticker:
         cr_obj = yf.Ticker(crypto_ticker)
@@ -498,4 +683,5 @@ with tab_crypto:
         else:
             st.error(
                 f"Could not retrieve crypto data for pair: {crypto_ticker}."
+                " Ensure it ends with `-USD`."
             )
