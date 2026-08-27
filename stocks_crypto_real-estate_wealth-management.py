@@ -12,7 +12,6 @@ import urllib.request
 # ==============================================================================
 # SECTION 1: GLOBAL PAGE CONFIGURATION & STYLING
 # ==============================================================================
-
 st.set_page_config(
     page_title="CMI | Institutional Scanner & Predictive Engine",
     layout="wide",
@@ -81,11 +80,9 @@ with col_header_left:
 with col_header_right:
     st.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
 
-
 # ==============================================================================
 # SECTION 2: SIDEBAR CONTROLS & CHEAT SHEET
 # ==============================================================================
-
 st.sidebar.header("Global Controls")
 timeframe_options = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"]
 timeframe = st.sidebar.selectbox("Analysis Horizon", timeframe_options, index=4)
@@ -106,11 +103,9 @@ with st.sidebar.expander("📖 Indicator Cheat Sheet (Beginner Friendly)", expan
     * **RVOL (Relative Volume):** Compares today's volume to normal volume (`>1.5x` = institutional activity).
     """)
 
-
 # ==============================================================================
 # SECTION 3: SHARED ANALYTICAL & COMPUTATIONAL ENGINES
 # ==============================================================================
-
 def compute_all_indicators(df):
     """Calculates SMA, VWAP, RSI, Bollinger Bands, MACD, ATR, and RVOL metrics."""
     df = df.copy()
@@ -150,7 +145,6 @@ def compute_all_indicators(df):
     
     return df
 
-
 def generate_predictive_model(df, forecast_days=10):
     """Generates 10-period forecasted price path with ATR-based volatility bands."""
     latest = df.iloc[-1]
@@ -159,35 +153,28 @@ def generate_predictive_model(df, forecast_days=10):
     rsi = latest["RSI"] if pd.notnull(latest["RSI"]) else 50
     macd_hist = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
     vwap = latest["VWAP"] if pd.notnull(latest["VWAP"]) else close
-
     recent_closes = df["Close"].tail(14).values
     x = np.arange(len(recent_closes))
     slope, _ = np.polyfit(x, recent_closes, 1)
-
     momentum_modifier = 1.0
     if macd_hist > 0:
         momentum_modifier += 0.25
     else:
         momentum_modifier -= 0.25
-
     if rsi > 70:
         momentum_modifier -= 0.4
     elif rsi < 30:
         momentum_modifier += 0.4
-
     if close > vwap:
         momentum_modifier += 0.15
     else:
         momentum_modifier -= 0.15
-
     daily_vector = (slope * 0.5) + (macd_hist * 0.15 * momentum_modifier)
-
     last_date = df.index[-1]
     future_dates = [last_date + timedelta(days=i + 1) for i in range(forecast_days)]
     projected_prices = []
     upper_confidence = []
     lower_confidence = []
-
     curr_price = close
     for i in range(1, forecast_days + 1):
         curr_price += daily_vector
@@ -195,7 +182,6 @@ def generate_predictive_model(df, forecast_days=10):
         confidence_spread = atr * np.sqrt(i) * 0.5
         upper_confidence.append(curr_price + confidence_spread)
         lower_confidence.append(curr_price - confidence_spread)
-
     forecast_df = pd.DataFrame(
         {
             "Predicted Path": projected_prices,
@@ -204,13 +190,10 @@ def generate_predictive_model(df, forecast_days=10):
         },
         index=future_dates,
     )
-
     buy_target = min(close, latest["BB_Lower"] if pd.notnull(latest["BB_Lower"]) else close)
     sell_target = max(projected_prices[-1], close + (2.0 * atr))
     stop_loss = buy_target - (1.5 * atr)
-
     return forecast_df, buy_target, sell_target, stop_loss, daily_vector
-
 
 def analyze_headline_sentiment(title):
     """Simple keyword sentiment tagger for financial news headlines."""
@@ -225,17 +208,14 @@ def analyze_headline_sentiment(title):
         "downgraded", "downgrade", "loss", "losses", "bear", "bearish", "lawsuit",
         "investigation", "decline", "warning", "slump", "cuts", "slash", "probe"
     ]
-
     bull_count = sum(1 for word in bullish_keywords if word in title_lower)
     bear_count = sum(1 for word in bearish_keywords if word in title_lower)
-
     if bull_count > bear_count:
         return "🟢 **(GOOD NEWS)**"
     elif bear_count > bull_count:
         return "🔴 **(BAD NEWS)**"
     else:
         return "⚪ **(NEUTRAL / INFORMATIONAL)**"
-
 
 @st.cache_data(ttl=900)
 def fetch_multi_source_news(ticker_name):
@@ -244,7 +224,6 @@ def fetch_multi_source_news(ticker_name):
     and formats publication dates strictly into (MM/DD/YY).
     """
     articles = []
-
     # 1. Fetch Yahoo Finance News
     try:
         tk = yf.Ticker(ticker_name)
@@ -268,10 +247,8 @@ def fetch_multi_source_news(ticker_name):
                         date_str = dt.strftime("%m/%d/%y")
                     except Exception:
                         pass
-
                 provider = content.get("provider") or item.get("publisher")
                 publisher = provider.get("displayName") if isinstance(provider, dict) else (provider or "Yahoo Finance")
-
                 if title and link:
                     articles.append({
                         "title": title,
@@ -282,14 +259,13 @@ def fetch_multi_source_news(ticker_name):
     except Exception:
         pass
 
-    # 2. Fetch Multi-Source Financial RSS Feeds (WSJ, Dow Jones, CNBC, Reuters, NYT, MarketWatch)
+    # 2. Fetch Multi-Source Financial RSS Feeds
     rss_sources = [
         ("Wall Street Journal", "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"),
         ("CNBC Markets", "https://search.cnbc.com/rs/search/combined/server/settings/rss.jsp?tab=news&id=15839069"),
         ("MarketWatch", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
         ("NYT Business", "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"),
     ]
-
     for pub_name, feed_url in rss_sources:
         try:
             req = urllib.request.Request(feed_url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -300,7 +276,6 @@ def fetch_multi_source_news(ticker_name):
                     t_title = item.find('title')
                     t_link = item.find('link')
                     t_date = item.find('pubDate')
-
                     title = t_title.text if t_title is not None else ""
                     link = t_link.text if t_link is not None else ""
                     
@@ -311,8 +286,6 @@ def fetch_multi_source_news(ticker_name):
                             date_str = dt.strftime("%m/%d/%y")
                         except Exception:
                             pass
-
-                    # Filter for ticker relevance if ticker isn't general macro market
                     if title and link:
                         articles.append({
                             "title": title,
@@ -322,9 +295,7 @@ def fetch_multi_source_news(ticker_name):
                         })
         except Exception:
             pass
-
     return articles
-
 
 def render_news_feed(ticker_obj, ticker_name):
     """Renders recent news headlines with publication dates formatted in (MM/DD/YY)."""
@@ -350,7 +321,6 @@ def render_news_feed(ticker_obj, ticker_name):
     else:
         st.info(f"No active news feeds found for **{ticker_name}**.")
 
-
 def render_plot_with_zoom(df_chart, columns_to_plot, title, y_title, key_prefix):
     """
     Renders Plotly charts with NO MOUSE SCROLL ZOOM (preventing page scroll interference)
@@ -358,9 +328,7 @@ def render_plot_with_zoom(df_chart, columns_to_plot, title, y_title, key_prefix)
     """
     if key_prefix not in st.session_state:
         st.session_state[key_prefix] = len(df_chart)
-
     cur_window = st.session_state[key_prefix]
-
     col_chart, col_zoom = st.columns([12, 1])
     
     with col_zoom:
@@ -371,9 +339,7 @@ def render_plot_with_zoom(df_chart, columns_to_plot, title, y_title, key_prefix)
         if st.button("➖", key=f"{key_prefix}_zoom_out", help="Zoom Out (More Periods)"):
             st.session_state[key_prefix] = min(len(df_chart), int(cur_window * 1.35))
             st.rerun()
-
     sliced_df = df_chart.tail(st.session_state[key_prefix])
-
     fig = go.Figure()
     for col in columns_to_plot:
         if col in sliced_df.columns:
@@ -383,7 +349,6 @@ def render_plot_with_zoom(df_chart, columns_to_plot, title, y_title, key_prefix)
                 mode='lines',
                 name=col
             ))
-
     fig.update_layout(
         title=title,
         yaxis_title=y_title,
@@ -392,11 +357,8 @@ def render_plot_with_zoom(df_chart, columns_to_plot, title, y_title, key_prefix)
         hovermode="x unified",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
-
     with col_chart:
-        # scrollZoom: False prevents chart from capturing mouse wheel scrolling down page
         st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
-
 
 def render_trading_strategies_guide():
     """Renders an interactive expander containing proven trading strategies."""
@@ -427,14 +389,12 @@ def render_trading_strategies_guide():
             4. **Action:** Ride the trend until price touches the upper **Bollinger Band** or the **Take Profit Target**, then lock in gains.
         """)
 
-
 def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     """Renders the comprehensive quantitative dashboard with Plotly zoom controls."""
     latest = df.iloc[-1]
     prev = df.iloc[-2]
     fmt = "{:,.3f}" if asset_type == "Crypto" else "{:,.2f}"
     forecast_df, buy_target, sell_target, stop_loss, daily_vector = generate_predictive_model(df)
-
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Current Price", f"${fmt.format(latest['Close'])}", f"{fmt.format(latest['Close']-prev['Close'])}")
     c2.metric("VWAP (Inst. Benchmark)", f"${fmt.format(latest['VWAP'])}" if pd.notnull(latest["VWAP"]) else "N/A")
@@ -442,43 +402,35 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     c4.metric("Bollinger %B", f"{latest['BB_Percent']:.2f}" if pd.notnull(latest["BB_Percent"]) else "N/A")
     c5.metric("RVOL (Volume Multiplier)", f"{latest['RVOL']:.2f}x" if pd.notnull(latest["RVOL"]) else "N/A")
     c6.metric("14-Period ATR (Daily Range)", f"${fmt.format(latest['ATR'])}" if pd.notnull(latest["ATR"]) else "N/A")
-
     st.subheader("🚦 Actionable Trade Recommendation")
     bull_points = 0
     bear_points = 0
-
     if latest["Close"] > latest["VWAP"]:
         bull_points += 1
     else:
         bear_points += 1
-
     if latest["RSI"] < 40:
         bull_points += 2
     elif latest["RSI"] > 70:
         bear_points += 2
-
     if latest["MACD_Hist"] > 0:
         bull_points += 1
     else:
         bear_points += 1
-
     if latest["Close"] > latest["SMA_20"]:
         bull_points += 1
     else:
         bear_points += 1
-
     if bull_points >= 4:
         st.success("🟢 **EXECUTIVE ACTION: BUY / ACCUMULATE NOW**\n\nStrong confluence of bullish signals.")
     elif bear_points >= 4:
         st.error("🔴 **EXECUTIVE ACTION: SELL / TAKE PROFITS NOW**\n\nHeavy overhead resistance detected.")
     else:
         st.warning("🟡 **EXECUTIVE ACTION: WAIT / HOLD (NO CLEAR EDGE RIGHT NOW)**\n\nIndicators show a neutral consolidation.")
-
     lean_direction = "LONG (BUY)" if bull_points >= bear_points else "SHORT (SELL)"
     lean_color = "🟢" if "LONG" in lean_direction else "🔴"
     curr_price = latest["Close"]
     atr_val = latest["ATR"] if pd.notnull(latest["ATR"]) else curr_price * 0.03
-
     if "LONG" in lean_direction:
         entry_target = buy_target
         exit_target = sell_target
@@ -491,7 +443,6 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
         sl_price = curr_price + (1.5 * atr_val)
         risk_pct = max(0.1, abs((sl_price - entry_target) / entry_target) * 100)
         reward_pct = max(0.1, abs((entry_target - exit_target) / entry_target) * 100)
-
     with st.container():
         st.markdown(f"#### {lean_color} **If You Had to Act: LEAN {lean_direction}**")
         m_col1, m_col2, m_col3, m_col4 = st.columns(4)
@@ -499,10 +450,8 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
         m_col2.metric("Take-Profit Target", f"${fmt.format(exit_target)}")
         m_col3.metric("Correlating Stop-Loss", f"${fmt.format(sl_price)}")
         m_col4.metric("Trade Risk Percentage", f"{risk_pct:.2f}%", f"Reward: +{reward_pct:.2f}%")
-
     render_trading_strategies_guide()
-
-    # Technical Charts with Dynamic Plotly Zoom Controls
+    
     render_plot_with_zoom(
         df[["Close", "VWAP", "BB_Upper", "BB_Lower"]].dropna(),
         ["Close", "VWAP", "BB_Upper", "BB_Lower"],
@@ -510,7 +459,6 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
         "Price ($)",
         key_prefix=f"{ticker_name}_vwap"
     )
-
     render_plot_with_zoom(
         df[["RSI", "Overbought (70)", "Oversold (30)"]].dropna(),
         ["RSI", "Overbought (70)", "Oversold (30)"],
@@ -518,7 +466,6 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
         "RSI Score",
         key_prefix=f"{ticker_name}_rsi"
     )
-
     st.subheader("MACD Momentum Acceleration")
     macd_df = df[["MACD_Hist"]].dropna().reset_index()
     macd_df["Color"] = np.where(macd_df["MACD_Hist"] >= 0, "Bullish (Green)", "Bearish (Red)")
@@ -537,8 +484,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
         .properties(height=220)
     )
     st.altair_chart(macd_chart, use_container_width=True)
-
-    # Predictive Analytics
+    
     st.markdown("---")
     st.header("🔮 10-Period Predictive Trajectory & Target Levels")
     t1, t2, t3, t4 = st.columns(4)
@@ -554,8 +500,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
         "Price ($)",
         key_prefix=f"{ticker_name}_forecast"
     )
-
-    # Financial Statements
+    
     st.markdown("---")
     st.header("📋 Financial Statements & Fundamental Overview")
     if asset_type == "Stock":
@@ -565,8 +510,6 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
             cash_flow = ticker_obj.cashflow
             rev_growth = info.get("revenueGrowth", 0) or 0
             profit_margin = info.get("profitMargins", 0) or 0
-            debt_to_equity = info.get("debtToEquity", 100) or 100
-
             if rev_growth > 0.10 and profit_margin > 0.15:
                 health_grade = "GOOD 🟢"
                 card_class = "metric-card-good"
@@ -579,7 +522,6 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
                 health_grade = "BAD 🔴"
                 card_class = "metric-card-bad"
                 grade_reason = "Declining top-line growth or squeezed margins."
-
             st.markdown(
                 f"""
             <div class="{card_class}">
@@ -589,7 +531,6 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
             """,
                 unsafe_allow_html=True,
             )
-
             if income_stmt is not None and not income_stmt.empty:
                 col_f1, col_f2 = st.columns(2)
                 with col_f1:
@@ -609,15 +550,12 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
                         st.dataframe(df_cf.style.format("${:,.1f}M"), use_container_width=True)
         except Exception:
             st.info("Financial statements not available for this ticker.")
-
-    # News Feed Trigger with Multi-Source and (MM/DD/YY) Dates
+    
     render_news_feed(ticker_obj, ticker_name)
-
 
 # ==============================================================================
 # REAL-TIME QUANTITATIVE SCREENER FUNCTIONS
 # ==============================================================================
-
 @st.cache_data(ttl=300)
 def fetch_live_stock_quant_picks():
     candidate_universe = [
@@ -628,7 +566,6 @@ def fetch_live_stock_quant_picks():
     
     long_results = []
     short_results = []
-
     for t in candidate_universe:
         try:
             tk = yf.Ticker(t)
@@ -642,6 +579,11 @@ def fetch_live_stock_quant_picks():
                 macd_h = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
                 rvol = latest["RVOL"] if pd.notnull(latest["RVOL"]) else 1.0
                 atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.03
+                
+                # Dynamic calculated hold time in trading days based on ATR relative volatility
+                atr_ratio = atr / cp if cp > 0 else 0.03
+                est_days = int(max(5, min(30, round(2.0 / atr_ratio))))
+                hold_horizon = f"{est_days - 2}–{est_days + 3} Trading Days"
 
                 if cp > vwap and rsi < 65 and macd_h > 0 and rvol > 0.8:
                     target = cp + (2.0 * atr)
@@ -650,12 +592,13 @@ def fetch_live_stock_quant_picks():
                     reward_pct = abs((target - cp) / cp) * 100
                     long_results.append({
                         "Ticker": t,
-                        "Live Price": f"${cp:.2f}",
+                        "Entry Price": f"${cp:.2f}",
+                        "Exit Price": f"${target:.2f}",
+                        "Stop Loss": f"${sl:.2f}",
+                        "Expected Hold Time": hold_horizon,
                         "VWAP Baseline": f"${vwap:.2f}",
                         "14-RSI": f"{rsi:.1f}",
                         "RVOL": f"{rvol:.2f}x",
-                        "Target Price": f"${target:.2f}",
-                        "Stop Loss": f"${sl:.2f}",
                         "Risk Profile": f"{risk_pct:.2f}% (R: +{reward_pct:.1f}%)",
                         "Quant Setup": "ACCUMULATE / BREAKOUT" if rvol > 1.2 else "VWAP SUPPORT BOUNCE"
                     })
@@ -666,20 +609,19 @@ def fetch_live_stock_quant_picks():
                     reward_pct = abs((cp - target) / cp) * 100
                     short_results.append({
                         "Ticker": t,
-                        "Live Price": f"${cp:.2f}",
+                        "Entry Price": f"${cp:.2f}",
+                        "Exit Price": f"${target:.2f}",
+                        "Stop Loss": f"${sl:.2f}",
+                        "Expected Hold Time": hold_horizon,
                         "VWAP Baseline": f"${vwap:.2f}",
                         "14-RSI": f"{rsi:.1f}",
                         "RVOL": f"{rvol:.2f}x",
-                        "Short Target": f"${target:.2f}",
-                        "Stop Loss": f"${sl:.2f}",
                         "Risk Profile": f"{risk_pct:.2f}% (R: +{reward_pct:.1f}%)",
                         "Quant Setup": "HEAVY DISTRIBUTION" if rvol > 1.2 else "VWAP RESISTANCE REJECT"
                     })
         except Exception:
             pass
-
     return pd.DataFrame(long_results), pd.DataFrame(short_results)
-
 
 def render_live_stock_screener():
     st.markdown("---")
@@ -688,21 +630,17 @@ def render_live_stock_screener():
     
     with st.spinner("Fetching live market price streams..."):
         df_stock_longs, df_stock_shorts = fetch_live_stock_quant_picks()
-
     tab_s_long, tab_s_short = st.tabs(["🟢 Live Quant Top Longs", "🔴 Live Quant Top Shorts"])
-
     with tab_s_long:
         if not df_stock_longs.empty:
             st.dataframe(df_stock_longs, use_container_width=True, hide_index=True)
         else:
             st.info("No stocks currently meet all 4 bullish factor alignment criteria in live streaming data.")
-
     with tab_s_short:
         if not df_stock_shorts.empty:
             st.dataframe(df_stock_shorts, use_container_width=True, hide_index=True)
         else:
             st.info("No stocks currently meet all 4 bearish factor alignment criteria in live streaming data.")
-
 
 @st.cache_data(ttl=180)
 def fetch_live_crypto_quant_picks():
@@ -710,10 +648,8 @@ def fetch_live_crypto_quant_picks():
         "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "ADA-USD", 
         "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD", "SUI-USD", "NEAR-USD"
     ]
-
     long_crypto = []
     short_crypto = []
-
     for pair in crypto_universe:
         try:
             tk = yf.Ticker(pair)
@@ -726,20 +662,25 @@ def fetch_live_crypto_quant_picks():
                 rsi = latest["RSI"] if pd.notnull(latest["RSI"]) else 50.0
                 macd_h = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
                 atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.04
-
                 fmt = "${:,.4f}" if cp < 1.0 else "${:,.2f}"
+                
+                # Dynamic crypto hold time calculated based on 24/7 trading volatility velocity
+                atr_ratio = atr / cp if cp > 0 else 0.04
+                est_days = int(max(3, min(21, round(1.5 / atr_ratio))))
+                hold_horizon = f"{est_days - 1}–{est_days + 3} Days"
 
                 if (cp > vwap and macd_h > 0) or (rsi < 35):
                     target = cp + (2.5 * atr)
                     sl = cp - (1.5 * atr)
                     long_crypto.append({
                         "Crypto Pair": pair,
-                        "Live Price": fmt.format(cp),
+                        "Entry Price": fmt.format(cp),
+                        "Exit Price": fmt.format(target),
+                        "Stop Loss": fmt.format(sl),
+                        "Expected Hold Time": hold_horizon,
                         "24h VWAP": fmt.format(vwap),
                         "14-RSI": f"{rsi:.1f}",
                         "ATR Range": fmt.format(atr),
-                        "Target Exit": fmt.format(target),
-                        "Stop Loss": fmt.format(sl),
                         "Signal Driver": "OVERSOLD BOUNCE" if rsi < 35 else "BULLISH MOMENTUM EXPANSION"
                     })
                 elif (cp < vwap and macd_h < 0) or (rsi > 70):
@@ -747,47 +688,40 @@ def fetch_live_crypto_quant_picks():
                     sl = cp + (1.5 * atr)
                     short_crypto.append({
                         "Crypto Pair": pair,
-                        "Live Price": fmt.format(cp),
+                        "Entry Price": fmt.format(cp),
+                        "Exit Price": fmt.format(target),
+                        "Stop Loss": fmt.format(sl),
+                        "Expected Hold Time": hold_horizon,
                         "24h VWAP": fmt.format(vwap),
                         "14-RSI": f"{rsi:.1f}",
                         "ATR Range": fmt.format(atr),
-                        "Short Target": fmt.format(target),
-                        "Stop Loss": fmt.format(sl),
                         "Signal Driver": "OVERBOUGHT EXHAUSTION" if rsi > 70 else "BEARISH VWAP BREAKDOWN"
                     })
         except Exception:
             pass
-
     return pd.DataFrame(long_crypto), pd.DataFrame(short_crypto)
-
 
 def render_live_crypto_screener():
     st.markdown("---")
     st.header("⚡ Live 24/7 Crypto Quant Picks & Recommendations")
     st.caption("Scans digital asset markets in real-time applying crypto-specific quantitative metrics.")
-
     with st.spinner("Streaming 24/7 crypto exchange data..."):
         df_crypto_longs, df_crypto_shorts = fetch_live_crypto_quant_picks()
-
     tab_c_long, tab_c_short = st.tabs(["🟢 Live Top Crypto Longs", "🔴 Live Top Crypto Shorts"])
-
     with tab_c_long:
         if not df_crypto_longs.empty:
             st.dataframe(df_crypto_longs, use_container_width=True, hide_index=True)
         else:
             st.info("No crypto pairs currently match bullish quantitative rules in live streaming data.")
-
     with tab_c_short:
         if not df_crypto_shorts.empty:
             st.dataframe(df_crypto_shorts, use_container_width=True, hide_index=True)
         else:
             st.info("No crypto pairs currently match bearish quantitative rules in live streaming data.")
 
-
 # ==============================================================================
 # SECTION 4: MAIN TABBED NAVIGATION
 # ==============================================================================
-
 tab_stocks, tab_crypto, tab_real_estate = st.tabs(
     ["📊 Stock Scanner", "🪙 Crypto Scanner", "🏠 Real Estate Evaluation"]
 )
@@ -821,7 +755,6 @@ with tab_crypto:
         crypto_ticker = st.text_input("Custom Pair (e.g. ADA-USD)", value="ADA-USD", key="crypto_input").upper()
     else:
         crypto_ticker = crypto_preset
-
     if crypto_ticker:
         cr_obj = yf.Ticker(crypto_ticker)
         crypto_data = cr_obj.history(period=timeframe)
@@ -830,7 +763,6 @@ with tab_crypto:
             render_full_dashboard(df_crypto_processed, crypto_ticker, asset_type="Crypto", ticker_obj=cr_obj)
         else:
             st.error(f"Could not retrieve crypto data for pair: {crypto_ticker}.")
-
     render_live_crypto_screener()
 
 # ------------------------------------------------------------------------------
@@ -848,16 +780,13 @@ with tab_real_estate:
         property_type = st.selectbox("Property Type", ["Single Family", "Multi-Family (2-4 Units)", "Commercial"], key="re_property_type")
     
     st.markdown("---")
-
     if analysis_mode == "Specific Property Address":
         address_input = st.text_input("Property Address", value="1244 S Michigan Ave, Chicago, IL 60605", key="re_address_input")
-
         col_p1, col_p2, col_p3, col_p4 = st.columns(4)
         purchase_price = col_p1.number_input("Purchase Price ($)", value=450000, step=10000, key="re_purchase_price")
         down_payment_pct = col_p2.slider("Down Payment (%)", 0, 50, 20, key="re_down_payment_pct") / 100
         interest_rate = col_p3.slider("Interest Rate (%)", 3.0, 12.0, 6.5, key="re_interest_rate") / 100
         loan_term_years = col_p4.selectbox("Loan Term (Years)", [30, 15, 10], index=0, key="re_loan_term_years")
-
         est_monthly_rent = st.number_input("Est. Monthly Rent ($)", value=3200, step=100, key="re_ltr_rent")
         
         down_payment = purchase_price * down_payment_pct
@@ -865,9 +794,7 @@ with tab_real_estate:
         monthly_rate = interest_rate / 12
         num_payments = loan_term_years * 12
         monthly_mortgage = (loan_amount * (monthly_rate * (1 + monthly_rate) ** num_payments) / ((1 + monthly_rate) ** num_payments - 1)) if loan_amount > 0 else 0
-
         monthly_cash_flow = est_monthly_rent - monthly_mortgage - (purchase_price * 0.018 / 12)
-
         m1, m2, m3 = st.columns(3)
         m1.metric("Est. Monthly Mortgage", f"${monthly_mortgage:,.0f}")
         m2.metric("Est. Net Monthly Cash Flow", f"${monthly_cash_flow:,.0f}")
@@ -876,7 +803,6 @@ with tab_real_estate:
 # ==============================================================================
 # SECTION 5: FOOTER
 # ==============================================================================
-
 st.markdown("---")
 col_ft_left, col_ft_right = st.columns([4, 1])
 with col_ft_left:
