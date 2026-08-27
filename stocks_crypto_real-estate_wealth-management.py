@@ -699,6 +699,215 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
 
 
 # ==============================================================================
+# REAL-TIME QUANTITATIVE SCREENER FUNCTIONS (LIVE MARKET DATA & RESEARCH FACTORS)
+# ==============================================================================
+
+@st.cache_data(ttl=300)
+def fetch_live_stock_quant_picks():
+    """
+    Dynamically scans an equity universe using the exact institutional research factors from the Stock tab:
+    VWAP position, 14-period RSI, MACD Histogram momentum, and Relative Volume (RVOL).
+    """
+    candidate_universe = [
+        "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "AMD", 
+        "NFLX", "PLTR", "INTC", "BAC", "JPM", "PANW", "UBER", "DIS", 
+        "SQ", "PYPL", "BA", "SNAP", "XOM", "CVX", "PFE", "MRK"
+    ]
+    
+    long_results = []
+    short_results = []
+
+    for t in candidate_universe:
+        try:
+            tk = yf.Ticker(t)
+            hist = tk.history(period="2mo")
+            if not hist.empty and len(hist) > 20:
+                df = compute_all_indicators(hist)
+                latest = df.iloc[-1]
+                cp = latest["Close"]
+                vwap = latest["VWAP"] if pd.notnull(latest["VWAP"]) else cp
+                rsi = latest["RSI"] if pd.notnull(latest["RSI"]) else 50.0
+                macd_h = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
+                rvol = latest["RVOL"] if pd.notnull(latest["RVOL"]) else 1.0
+                atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.03
+
+                # Bullish Quant Factor Matching
+                if cp > vwap and rsi < 65 and macd_h > 0 and rvol > 0.8:
+                    target = cp + (2.0 * atr)
+                    sl = cp - (1.5 * atr)
+                    risk_pct = abs((cp - sl) / cp) * 100
+                    reward_pct = abs((target - cp) / cp) * 100
+                    long_results.append({
+                        "Ticker": t,
+                        "Live Price": f"${cp:.2f}",
+                        "VWAP Baseline": f"${vwap:.2f}",
+                        "14-RSI": f"{rsi:.1f}",
+                        "RVOL": f"{rvol:.2f}x",
+                        "Target Price": f"${target:.2f}",
+                        "Stop Loss": f"${sl:.2f}",
+                        "Risk Profile": f"{risk_pct:.2f}% (R: +{reward_pct:.1f}%)",
+                        "Quant Setup": "ACCUMULATE / BREAKOUT" if rvol > 1.2 else "VWAP SUPPORT BOUNCE"
+                    })
+
+                # Bearish Quant Factor Matching
+                elif cp < vwap and macd_h < 0 and rsi > 35:
+                    target = cp - (2.0 * atr)
+                    sl = cp + (1.5 * atr)
+                    risk_pct = abs((sl - cp) / cp) * 100
+                    reward_pct = abs((cp - target) / cp) * 100
+                    short_results.append({
+                        "Ticker": t,
+                        "Live Price": f"${cp:.2f}",
+                        "VWAP Baseline": f"${vwap:.2f}",
+                        "14-RSI": f"{rsi:.1f}",
+                        "RVOL": f"{rvol:.2f}x",
+                        "Short Target": f"${target:.2f}",
+                        "Stop Loss": f"${sl:.2f}",
+                        "Risk Profile": f"{risk_pct:.2f}% (R: +{reward_pct:.1f}%)",
+                        "Quant Setup": "HEAVY DISTRIBUTION" if rvol > 1.2 else "VWAP RESISTANCE REJECT"
+                    })
+        except Exception:
+            pass
+
+    return pd.DataFrame(long_results), pd.DataFrame(short_results)
+
+
+def render_live_stock_screener():
+    """Renders the Real-Time Stock Quant Screener inside the Stock Tab."""
+    st.markdown("---")
+    st.header("🎯 Live Market Quant Top Stock Picks")
+    st.caption(
+        "Scans live US equities in real-time applying research factors from the Stock tab "
+        "(Price vs. VWAP baseline, 14-RSI trajectory, MACD momentum, and RVOL institutional spikes)."
+    )
+    
+    with st.spinner("Fetching live market price streams and executing stock factor algorithm..."):
+        df_stock_longs, df_stock_shorts = fetch_live_stock_quant_picks()
+
+    tab_s_long, tab_s_short = st.tabs(
+        ["🟢 Live Quant Top Longs (Bullish Equities)", "🔴 Live Quant Top Shorts (Bearish Equities)"]
+    )
+
+    with tab_s_long:
+        if not df_stock_longs.empty:
+            st.dataframe(df_stock_longs, use_container_width=True, hide_index=True)
+        else:
+            st.info("No stocks currently meet all 4 bullish factor alignment criteria in live streaming data.")
+
+    with tab_s_short:
+        st.caption("⚠️ Short positions carry dynamic squeeze risk. Enforce stop losses strictly.")
+        if not df_stock_shorts.empty:
+            st.dataframe(df_stock_shorts, use_container_width=True, hide_index=True)
+        else:
+            st.info("No stocks currently meet all 4 bearish factor alignment criteria in live streaming data.")
+
+
+@st.cache_data(ttl=180)
+def fetch_live_crypto_quant_picks():
+    """
+    Dynamically scans liquid 24/7 crypto pairs using crypto metrics:
+    RSI momentum extremes, VWAP baseline deviations, ATR daily ranges, and MACD trend direction.
+    """
+    crypto_universe = [
+        "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "ADA-USD", 
+        "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD", "SUI-USD", "NEAR-USD",
+        "APT-USD", "LTC-USD", "UNI-USD", "PEPE-USD", "FET-USD", "SHIB-USD"
+    ]
+
+    long_crypto = []
+    short_crypto = []
+
+    for pair in crypto_universe:
+        try:
+            tk = yf.Ticker(pair)
+            hist = tk.history(period="1mo")
+            if not hist.empty and len(hist) > 14:
+                df = compute_all_indicators(hist)
+                latest = df.iloc[-1]
+                cp = latest["Close"]
+                vwap = latest["VWAP"] if pd.notnull(latest["VWAP"]) else cp
+                rsi = latest["RSI"] if pd.notnull(latest["RSI"]) else 50.0
+                macd_h = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
+                atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.04
+                rvol = latest["RVOL"] if pd.notnull(latest["RVOL"]) else 1.0
+
+                # Format dynamically based on price magnitude
+                fmt = "${:,.4f}" if cp < 1.0 else "${:,.2f}"
+
+                # Crypto Bullish Match (Momentum Expansion or Oversold Bounce)
+                if (cp > vwap and macd_h > 0) or (rsi < 35):
+                    target = cp + (2.5 * atr)
+                    sl = cp - (1.5 * atr)
+                    risk_pct = abs((cp - sl) / cp) * 100
+                    reward_pct = abs((target - cp) / cp) * 100
+                    
+                    long_crypto.append({
+                        "Crypto Pair": pair,
+                        "Live Price": fmt.format(cp),
+                        "24h VWAP": fmt.format(vwap),
+                        "14-RSI": f"{rsi:.1f}",
+                        "ATR (Daily Swing)": fmt.format(atr),
+                        "Target Exit": fmt.format(target),
+                        "Stop Loss": fmt.format(sl),
+                        "Risk / Reward": f"-{risk_pct:.1f}% / +{reward_pct:.1f}%",
+                        "Signal Driver": "OVERSOLD BOUNCE" if rsi < 35 else "BULLISH MOMENTUM EXPANSION"
+                    })
+
+                # Crypto Bearish Match (Momentum Exhaustion or VWAP Breakdown)
+                elif (cp < vwap and macd_h < 0) or (rsi > 70):
+                    target = cp - (2.5 * atr)
+                    sl = cp + (1.5 * atr)
+                    risk_pct = abs((sl - cp) / cp) * 100
+                    reward_pct = abs((cp - target) / cp) * 100
+
+                    short_crypto.append({
+                        "Crypto Pair": pair,
+                        "Live Price": fmt.format(cp),
+                        "24h VWAP": fmt.format(vwap),
+                        "14-RSI": f"{rsi:.1f}",
+                        "ATR (Daily Swing)": fmt.format(atr),
+                        "Short Target": fmt.format(target),
+                        "Stop Loss": fmt.format(sl),
+                        "Risk / Reward": f"-{risk_pct:.1f}% / +{reward_pct:.1f}%",
+                        "Signal Driver": "OVERBOUGHT EXHAUSTION" if rsi > 70 else "BEARISH VWAP BREAKDOWN"
+                    })
+        except Exception:
+            pass
+
+    return pd.DataFrame(long_crypto), pd.DataFrame(short_crypto)
+
+
+def render_live_crypto_screener():
+    """Renders the Real-Time Crypto Quant Screener inside the Crypto Tab."""
+    st.markdown("---")
+    st.header("⚡ Live 24/7 Crypto Quant Picks & Recommendations")
+    st.caption(
+        "Scans digital asset markets in real-time applying crypto-specific quantitative metrics "
+        "(Volatile ATR bands, 24-hour VWAP baseline, RSI momentum extremes, and MACD trends)."
+    )
+
+    with st.spinner("Streaming 24/7 crypto exchange data and calculating volatility factors..."):
+        df_crypto_longs, df_crypto_shorts = fetch_live_crypto_quant_picks()
+
+    tab_c_long, tab_c_short = st.tabs(
+        ["🟢 Live Top Crypto Longs (Bullish Momentum)", "🔴 Live Top Crypto Shorts (Bearish Pullbacks)"]
+    )
+
+    with tab_c_long:
+        if not df_crypto_longs.empty:
+            st.dataframe(df_crypto_longs, use_container_width=True, hide_index=True)
+        else:
+            st.info("No crypto pairs currently match bullish quantitative rules in live streaming data.")
+
+    with tab_c_short:
+        st.caption("⚠️ Leverage in crypto markets increases liquidation risk. Enforce ATR stops strictly.")
+        if not df_crypto_shorts.empty:
+            st.dataframe(df_crypto_shorts, use_container_width=True, hide_index=True)
+        else:
+            st.info("No crypto pairs currently match bearish quantitative rules in live streaming data.")
+
+
+# ==============================================================================
 # SECTION 4: MAIN TABBED NAVIGATION (STOCKS | CRYPTO | REAL ESTATE)
 # ==============================================================================
 # Purpose: Serves as the primary operational workspace, dividing quantitative analysis 
@@ -711,7 +920,7 @@ tab_stocks, tab_crypto, tab_real_estate = st.tabs(
 # ------------------------------------------------------------------------------
 # TAB 1: STOCK SCANNER
 # ------------------------------------------------------------------------------
-# Purpose: Analyzes equity equities using institutional indicators (VWAP, RSI, MACD, ATR) 
+# Purpose: Analyzes equities using institutional indicators (VWAP, RSI, MACD, ATR) 
 # and SEC fundamental reporting to identify high-probability long/short swing opportunities.
 # Idea: Eliminate emotional retail bias by evaluating equities on institutional benchmark 
 # pricing, relative volume surges, and quarterly corporate financial health.
@@ -741,6 +950,9 @@ with tab_stocks:
             st.error(
                 f"Could not retrieve stock data for symbol: {stock_ticker}"
             )
+    
+    # Isolated Stock Quant Market Screener
+    render_live_stock_screener()
 
 # ------------------------------------------------------------------------------
 # TAB 2: CRYPTO SCANNER
@@ -786,6 +998,9 @@ with tab_crypto:
                 f"Could not retrieve crypto data for pair: {crypto_ticker}."
                 " Ensure it ends with `-USD`."
             )
+
+    # Isolated Crypto Quant Market Screener
+    render_live_crypto_screener()
 
 # ------------------------------------------------------------------------------
 # TAB 3: REAL ESTATE EVALUATION
@@ -1154,128 +1369,7 @@ with tab_real_estate:
 
 
 # ==============================================================================
-# SECTION 5: LIVE QUANTITATIVE SCREENER DASHBOARD
-# ==============================================================================
-# Purpose: Scans pre-filtered baskets of stocks to auto-populate high-conviction 
-# bullish and bearish opportunities in real-time based on system quantitative rules.
-
-st.markdown("---")
-st.header("🎯 Live Quantitative Top Market Picks")
-st.caption(
-    "Dynamically updated in real-time via automated quantitative screening"
-    " integrating live price action, ATR volatility targets, stop losses, and risk ratios."
-)
-
-@st.cache_data(ttl=300)
-def fetch_live_quant_picks():
-    long_tickers = [
-        "NVDA", "META", "PANW", "SHOP", "VLO",
-        "UBER", "NOW", "DINO", "WMT", "EPD"
-    ]
-    short_tickers = [
-        "HTZ", "GRPN", "SOUN", "PLCE", "AI",
-        "LCID", "PCT", "XRX", "UPST", "RXT"
-    ]
-
-    long_results = []
-    for t in long_tickers:
-        try:
-            tk = yf.Ticker(t)
-            hist = tk.history(period="1mo")
-            if not hist.empty and len(hist) > 14:
-                df = compute_all_indicators(hist)
-                latest = df.iloc[-1]
-                cp = latest["Close"]
-                atr = (
-                    latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.03
-                )
-                target = cp + (2.0 * atr)
-                sl = cp - (1.5 * atr)
-                risk_pct = abs((cp - sl) / cp) * 100
-
-                long_results.append({
-                    "Ticker": t,
-                    "Live Price": f"${cp:.2f}",
-                    "Target Price": f"${target:.2f}",
-                    "Stop Loss": f"${sl:.2f}",
-                    "Risk %": f"{risk_pct:.2f}%",
-                    "RVOL": f"{latest['RVOL']:.2f}x"
-                    if pd.notnull(latest["RVOL"])
-                    else "1.0x",
-                    "RSI": f"{latest['RSI']:.1f}"
-                    if pd.notnull(latest["RSI"])
-                    else "50.0",
-                    "Quant Signal": "ACCUMULATE"
-                    if cp > latest["VWAP"]
-                    else "PULLBACK ENTRY",
-                })
-        except Exception:
-            pass
-
-    short_results = []
-    for t in short_tickers:
-        try:
-            tk = yf.Ticker(t)
-            hist = tk.history(period="1mo")
-            if not hist.empty and len(hist) > 14:
-                df = compute_all_indicators(hist)
-                latest = df.iloc[-1]
-                cp = latest["Close"]
-                atr = (
-                    latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.03
-                )
-                target = cp - (2.0 * atr)
-                sl = cp + (1.5 * atr)
-                risk_pct = abs((sl - cp) / cp) * 100
-
-                short_results.append({
-                    "Ticker": t,
-                    "Live Price": f"${cp:.2f}",
-                    "Short Target": f"${target:.2f}",
-                    "Stop Loss": f"${sl:.2f}",
-                    "Risk %": f"{risk_pct:.2f}%",
-                    "RVOL": f"{latest['RVOL']:.2f}x"
-                    if pd.notnull(latest["RVOL"])
-                    else "1.0x",
-                    "RSI": f"{latest['RSI']:.1f}"
-                    if pd.notnull(latest["RSI"])
-                    else "50.0",
-                    "Quant Signal": "SHORT / DE-RISK",
-                })
-        except Exception:
-            pass
-
-    return pd.DataFrame(long_results), pd.DataFrame(short_results)
-
-df_live_longs, df_live_shorts = fetch_live_quant_picks()
-
-tab_long, tab_short = st.tabs(
-    ["🟢 Live Top 10 Longs (Bullish)", "🔴 Live Top 10 Shorts (Bearish)"]
-)
-
-with tab_long:
-    st.subheader("Live Quantitative Long Candidates")
-    st.dataframe(
-        df_live_longs,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-with tab_short:
-    st.subheader("Live Quantitative Short Candidates")
-    st.caption(
-        "⚠️ High short-interest securities carry squeeze risk. Maintain strict"
-        " compliance with stop-loss levels."
-    )
-    st.dataframe(
-        df_live_shorts,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-
-# ==============================================================================
-# SECTION 6: FOOTER & BRANDING
+# SECTION 5: FOOTER & BRANDING
 # ==============================================================================
 
 st.markdown("---")
@@ -1286,13 +1380,3 @@ with col_ft_left:
     )
 with col_ft_right:
     st.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
-
-
-# ------------------------------------------------------------------------------
-# WEALTH MANAGEMENT AI QUESTIONNAIRE & BUDGETING ENGINE (FUTURE DEVELOPMENT)
-# ------------------------------------------------------------------------------
-# Purpose: Translates holistic investor profiles (risk tolerance, retirement horizon, income streams) 
-# into tailored portfolio asset allocations and automated cash-flow budgeting structures.
-# Idea: Connect tactical short-term market gains with long-term wealth accumulation by establishing 
-# structured savings rates, automated debt paydown schedules, and diversified multi-asset allocation models.
-# ------------------------------------------------------------------------------
