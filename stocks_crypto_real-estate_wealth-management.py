@@ -224,7 +224,6 @@ def fetch_multi_source_news(ticker_name):
     and formats publication dates strictly into (MM/DD/YY).
     """
     articles = []
-    # 1. Fetch Yahoo Finance News
     try:
         tk = yf.Ticker(ticker_name)
         yf_news = tk.news
@@ -259,7 +258,6 @@ def fetch_multi_source_news(ticker_name):
     except Exception:
         pass
 
-    # 2. Fetch Multi-Source Financial RSS Feeds
     rss_sources = [
         ("Wall Street Journal", "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"),
         ("CNBC Markets", "https://search.cnbc.com/rs/search/combined/server/settings/rss.jsp?tab=news&id=15839069"),
@@ -558,14 +556,19 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
 # ==============================================================================
 @st.cache_data(ttl=300)
 def fetch_live_stock_quant_picks():
+    # Expanded universe to ensure sufficient setup density across all market conditions
     candidate_universe = [
         "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "AMD", 
         "NFLX", "PLTR", "INTC", "BAC", "JPM", "PANW", "UBER", "DIS", 
-        "SQ", "PYPL", "BA", "SNAP", "XOM", "CVX", "PFE", "MRK"
+        "SQ", "PYPL", "BA", "SNAP", "XOM", "CVX", "PFE", "MRK", "UNH",
+        "COST", "HD", "PG", "ABBV", "CRM", "ORCL", "NKE", "LLY", "AVGO",
+        "CSCO", "PEP", "TMO", "ACN", "MCD", "WAL", "WFC", "C", "MS",
+        "GS", "TXN", "QCOM", "AMAT", "MU", "SNOW", "SHOP"
     ]
     
-    long_results = []
-    short_results = []
+    long_candidates = []
+    short_candidates = []
+    
     for t in candidate_universe:
         try:
             tk = yf.Ticker(t)
@@ -580,71 +583,116 @@ def fetch_live_stock_quant_picks():
                 rvol = latest["RVOL"] if pd.notnull(latest["RVOL"]) else 1.0
                 atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.03
                 bb_lower = latest["BB_Lower"] if pd.notnull(latest["BB_Lower"]) else cp
+                bb_upper = latest["BB_Upper"] if pd.notnull(latest["BB_Upper"]) else cp
                 
                 # Dynamic calculated hold time in trading days based on ATR relative volatility
                 atr_ratio = atr / cp if cp > 0 else 0.03
                 est_days = int(max(5, min(30, round(2.0 / atr_ratio))))
                 hold_horizon = f"{est_days - 2}–{est_days + 3} Trading Days"
 
-                if cp > vwap and rsi < 65 and macd_h > 0 and rvol > 0.8:
-                    buy_target = min(cp, bb_lower)
+                # Quantitative Factor Logic using on-site technical indicators
+                # LONG Setup Evaluator
+                if cp >= (vwap * 0.985) and rsi < 68 and macd_h > -0.05:
+                    buy_target = min(cp, bb_lower) if (cp - bb_lower) > 0 else cp
                     target = buy_target + (2.0 * atr)
                     sl = buy_target - (1.5 * atr)
-                    risk_pct = abs((buy_target - sl) / buy_target) * 100
-                    reward_pct = abs((target - buy_target) / buy_target) * 100
-                    long_results.append({
+                    risk_pct = max(0.1, abs((buy_target - sl) / buy_target) * 100)
+                    reward_pct = max(0.1, abs((target - buy_target) / buy_target) * 100)
+                    rr_ratio = reward_pct / risk_pct
+                    
+                    # On-Site Technical Likelihood & Return Scoring (0 to 100 Scale)
+                    score = (
+                        (min(rvol, 3.0) / 3.0 * 30) +
+                        (max(0, 70 - rsi) / 40 * 25) +
+                        (min(rr_ratio, 3.0) / 3.0 * 25) +
+                        (20 if macd_h > 0 else 5)
+                    )
+                    
+                    long_candidates.append({
                         "Ticker": t,
+                        "Quant Score": round(score, 1),
                         "Current Price": f"${cp:.2f}",
                         "Entry Price Target": f"${buy_target:.2f}",
                         "Exit Target Price": f"${target:.2f}",
                         "Stop Loss": f"${sl:.2f}",
+                        "Est. Return": f"+{reward_pct:.1f}%",
                         "Expected Hold Time": hold_horizon,
                         "VWAP Baseline": f"${vwap:.2f}",
                         "14-RSI": f"{rsi:.1f}",
                         "RVOL": f"{rvol:.2f}x",
                         "Risk Profile": f"{risk_pct:.2f}% (R: +{reward_pct:.1f}%)",
-                        "Quant Setup": "ACCUMULATE / BREAKOUT" if rvol > 1.2 else "VWAP SUPPORT BOUNCE"
+                        "Quant Setup": "ACCUMULATE / BREAKOUT" if rvol > 1.2 else "VWAP SUPPORT BOUNCE",
+                        "_sort_score": score,
+                        "_return_pct": reward_pct
                     })
-                elif cp < vwap and macd_h < 0 and rsi > 35:
+
+                # SHORT Setup Evaluator
+                elif cp <= (vwap * 1.015) and macd_h < 0.05 and rsi > 32:
                     target = cp - (2.0 * atr)
                     sl = cp + (1.5 * atr)
-                    risk_pct = abs((sl - cp) / cp) * 100
-                    reward_pct = abs((cp - target) / cp) * 100
-                    short_results.append({
+                    risk_pct = max(0.1, abs((sl - cp) / cp) * 100)
+                    reward_pct = max(0.1, abs((cp - target) / cp) * 100)
+                    rr_ratio = reward_pct / risk_pct
+                    
+                    score = (
+                        (min(rvol, 3.0) / 3.0 * 30) +
+                        (max(0, rsi - 30) / 40 * 25) +
+                        (min(rr_ratio, 3.0) / 3.0 * 25) +
+                        (20 if macd_h < 0 else 5)
+                    )
+                    
+                    short_candidates.append({
                         "Ticker": t,
+                        "Quant Score": round(score, 1),
                         "Current Price": f"${cp:.2f}",
                         "Entry Price Target": f"${cp:.2f}",
                         "Exit Target Price": f"${target:.2f}",
                         "Stop Loss": f"${sl:.2f}",
+                        "Est. Return": f"+{reward_pct:.1f}%",
                         "Expected Hold Time": hold_horizon,
                         "VWAP Baseline": f"${vwap:.2f}",
                         "14-RSI": f"{rsi:.1f}",
                         "RVOL": f"{rvol:.2f}x",
                         "Risk Profile": f"{risk_pct:.2f}% (R: +{reward_pct:.1f}%)",
-                        "Quant Setup": "HEAVY DISTRIBUTION" if rvol > 1.2 else "VWAP RESISTANCE REJECT"
+                        "Quant Setup": "HEAVY DISTRIBUTION" if rvol > 1.2 else "VWAP RESISTANCE REJECT",
+                        "_sort_score": score,
+                        "_return_pct": reward_pct
                     })
         except Exception:
             pass
-    return pd.DataFrame(long_results), pd.DataFrame(short_results)
+
+    # Sort candidates by Quant Score & Expected Return % then take TOP 10
+    df_long = pd.DataFrame(long_candidates)
+    if not df_long.empty:
+        df_long = df_long.sort_values(by=["_sort_score", "_return_pct"], ascending=[False, False]).head(10)
+        df_long = df_long.drop(columns=["_sort_score", "_return_pct"])
+        
+    df_short = pd.DataFrame(short_candidates)
+    if not df_short.empty:
+        df_short = df_short.sort_values(by=["_sort_score", "_return_pct"], ascending=[False, False]).head(10)
+        df_short = df_short.drop(columns=["_sort_score", "_return_pct"])
+
+    return df_long, df_short
 
 def render_live_stock_screener():
     st.markdown("---")
-    st.header("🎯 Live Market Quant Top Stock Picks")
-    st.caption("Scans live US equities in real-time applying research factors from the Stock tab.")
+    st.header("🎯 Top 10 Quantitative Stock Trade Recommendations")
+    st.caption("Ranked by highest probability of execution and optimal risk-reward potential using site technical metrics.")
     
-    with st.spinner("Fetching live market price streams..."):
+    with st.spinner("Scanning 50 equity streams & computing quantitative factor rankings..."):
         df_stock_longs, df_stock_shorts = fetch_live_stock_quant_picks()
-    tab_s_long, tab_s_short = st.tabs(["🟢 Live Quant Top Longs", "🔴 Live Quant Top Shorts"])
+    
+    tab_s_long, tab_s_short = st.tabs(["🟢 Top 10 Stock Longs", "🔴 Top 10 Stock Shorts"])
     with tab_s_long:
         if not df_stock_longs.empty:
             st.dataframe(df_stock_longs, use_container_width=True, hide_index=True)
         else:
-            st.info("No stocks currently meet all 4 bullish factor alignment criteria in live streaming data.")
+            st.info("No stocks currently meet quantitative threshold requirements in live streaming data.")
     with tab_s_short:
         if not df_stock_shorts.empty:
             st.dataframe(df_stock_shorts, use_container_width=True, hide_index=True)
         else:
-            st.info("No stocks currently meet all 4 bearish factor alignment criteria in live streaming data.")
+            st.info("No stocks currently meet quantitative threshold requirements in live streaming data.")
 
 @st.cache_data(ttl=180)
 def fetch_live_crypto_quant_picks():
