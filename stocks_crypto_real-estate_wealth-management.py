@@ -81,11 +81,46 @@ with col_header_right:
     st.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
 
 # ==============================================================================
-# SECTION 2: SIDEBAR CONTROLS & CHEAT SHEET
+# SECTION 2: SESSION STATE & SIDEBAR FAVORITES WATCHLIST
 # ==============================================================================
+# Initialize default starred assets in session state if not already defined
+if "starred_stocks" not in st.session_state:
+    st.session_state["starred_stocks"] = ["NVDA", "AAPL"]
+
+if "starred_crypto" not in st.session_state:
+    st.session_state["starred_crypto"] = ["BTC-USD", "ETH-USD"]
+
 st.sidebar.header("Global Controls")
 timeframe_options = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"]
 timeframe = st.sidebar.selectbox("Analysis Horizon", timeframe_options, index=4)
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("⭐ Favorite Watchlist")
+
+stock_watchlist_options = [
+    "NVDA", "AAPL", "VOO", "QQQ", "RUM", "MSFT", "AMZN", "GOOGL", 
+    "META", "TSLA", "AMD", "NFLX", "PLTR", "INTC", "BAC", "JPM", 
+    "PANW", "UBER", "DIS", "SQ", "PYPL", "BA", "SNAP", "XOM", "CVX"
+]
+starred_stocks_selected = st.sidebar.multiselect(
+    "Star Favorite Stocks",
+    options=sorted(list(set(stock_watchlist_options + st.session_state["starred_stocks"]))),
+    default=st.session_state["starred_stocks"],
+    key="sb_starred_stocks"
+)
+st.session_state["starred_stocks"] = starred_stocks_selected
+
+crypto_watchlist_options = [
+    "BTC-USD", "ETH-USD", "SOL-USD", "O40092-USD", "BNB-USD", "XRP-USD", 
+    "ADA-USD", "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD", "SUI-USD", "NEAR-USD"
+]
+starred_crypto_selected = st.sidebar.multiselect(
+    "Star Favorite Crypto",
+    options=sorted(list(set(crypto_watchlist_options + st.session_state["starred_crypto"]))),
+    default=st.session_state["starred_crypto"],
+    key="sb_starred_crypto"
+)
+st.session_state["starred_crypto"] = starred_crypto_selected
 
 st.sidebar.markdown("---")
 
@@ -220,10 +255,7 @@ def analyze_headline_sentiment(title):
 
 @st.cache_data(ttl=900)
 def fetch_multi_source_news(ticker_name):
-    """
-    Fetches news from Yahoo Finance along with external feeds (WSJ, Dow Jones, Reuters, CNBC, NYT)
-    and formats publication dates strictly into (MM/DD/YY).
-    """
+    """Fetches news from Yahoo Finance along with external feeds."""
     articles = []
     try:
         tk = yf.Ticker(ticker_name)
@@ -321,10 +353,7 @@ def render_news_feed(ticker_obj, ticker_name):
         st.info(f"No active news feeds found for **{ticker_name}**.")
 
 def render_plot_with_zoom(df_chart, columns_to_plot, title, y_title, key_prefix):
-    """
-    Renders Plotly charts with NO MOUSE SCROLL ZOOM (preventing page scroll interference)
-    and adds explicit [+] and [-] zoom buttons on the right side.
-    """
+    """Renders Plotly charts with zoom buttons."""
     if key_prefix not in st.session_state:
         st.session_state[key_prefix] = len(df_chart)
     cur_window = st.session_state[key_prefix]
@@ -360,7 +389,7 @@ def render_plot_with_zoom(df_chart, columns_to_plot, title, y_title, key_prefix)
         st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
 
 def render_trading_strategies_guide():
-    """Renders an interactive expander containing proven trading strategies."""
+    """Renders interactive strategy guide."""
     with st.expander("💡 Easy Proven Trading Strategies (How to use this dashboard)", expanded=False):
         st.markdown("""
         ### Strategy 1: The "Institutional VWAP Bounce" (Best for Trend Buyers)
@@ -389,7 +418,7 @@ def render_trading_strategies_guide():
         """)
 
 def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
-    """Renders the comprehensive quantitative dashboard with Plotly zoom controls."""
+    """Renders comprehensive quantitative dashboard."""
     latest = df.iloc[-1]
     prev = df.iloc[-2]
     fmt = "{:,.3f}" if asset_type == "Crypto" else "{:,.2f}"
@@ -401,6 +430,26 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     c4.metric("Bollinger %B", f"{latest['BB_Percent']:.2f}" if pd.notnull(latest["BB_Percent"]) else "N/A")
     c5.metric("RVOL (Volume Multiplier)", f"{latest['RVOL']:.2f}x" if pd.notnull(latest["RVOL"]) else "N/A")
     c6.metric("14-Period ATR (Daily Range)", f"${fmt.format(latest['ATR'])}" if pd.notnull(latest["ATR"]) else "N/A")
+    
+    # Interactive Star Toggle Button for current viewed asset
+    is_asset_crypto = (asset_type == "Crypto")
+    starred_list = st.session_state["starred_crypto"] if is_asset_crypto else st.session_state["starred_stocks"]
+    is_starred = ticker_name in starred_list
+    
+    star_col1, star_col2 = st.columns([1, 5])
+    with star_col1:
+        star_btn_label = "⭐ Starred in Watchlist" if is_starred else "☆ Add to Favorites"
+        if st.button(star_btn_label, key=f"star_toggle_{ticker_name}"):
+            if is_starred:
+                starred_list.remove(ticker_name)
+            else:
+                starred_list.append(ticker_name)
+            if is_asset_crypto:
+                st.session_state["starred_crypto"] = starred_list
+            else:
+                st.session_state["starred_stocks"] = starred_list
+            st.rerun()
+
     st.subheader("🚦 Actionable Trade Recommendation")
     bull_points = 0
     bear_points = 0
@@ -553,11 +602,10 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     render_news_feed(ticker_obj, ticker_name)
 
 # ==============================================================================
-# REAL-TIME QUANTITATIVE SCREENER FUNCTIONS
+# REAL-TIME QUANTITATIVE SCREENER FUNCTIONS WITH INTERACTIVE FAVS
 # ==============================================================================
 @st.cache_data(ttl=300)
 def fetch_live_stock_quant_picks():
-    # Universe including user-recommended core picks: NVDA, AAPL, VOO, QQQ, RUM
     candidate_universe = [
         "NVDA", "AAPL", "VOO", "QQQ", "RUM", "MSFT", "AMZN", "GOOGL", 
         "META", "TSLA", "AMD", "NFLX", "PLTR", "INTC", "BAC", "JPM", 
@@ -584,14 +632,11 @@ def fetch_live_stock_quant_picks():
                 rvol = latest["RVOL"] if pd.notnull(latest["RVOL"]) else 1.0
                 atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.03
                 bb_lower = latest["BB_Lower"] if pd.notnull(latest["BB_Lower"]) else cp
-                bb_upper = latest["BB_Upper"] if pd.notnull(latest["BB_Upper"]) else cp
                 
-                # Dynamic calculated hold time in trading days based on ATR relative volatility
                 atr_ratio = atr / cp if cp > 0 else 0.03
                 est_days = int(max(5, min(30, round(2.0 / atr_ratio))))
                 hold_horizon = f"{est_days - 2}–{est_days + 3} Trading Days"
                 
-                # LONG Setup Evaluator
                 if cp >= (vwap * 0.985) and rsi < 68 and macd_h > -0.05:
                     buy_target = min(cp, bb_lower) if (cp - bb_lower) > 0 else cp
                     target = buy_target + (2.0 * atr)
@@ -624,7 +669,6 @@ def fetch_live_stock_quant_picks():
                         "_sort_score": score,
                         "_return_pct": reward_pct
                     })
-                # SHORT Setup Evaluator
                 elif cp <= (vwap * 1.015) and macd_h < 0.05 and rsi > 32:
                     target = cp - (2.0 * atr)
                     sl = cp + (1.5 * atr)
@@ -670,29 +714,77 @@ def fetch_live_stock_quant_picks():
         df_short = df_short.drop(columns=["_sort_score", "_return_pct"])
     return df_long, df_short
 
+def render_interactive_screener_table(df, asset_type, key_id):
+    """Renders interactive table with editable ⭐ Star checkboxes that sync with session_state."""
+    if df.empty:
+        st.info("No tickers match quantitative threshold requirements in live streaming data.")
+        return
+
+    ticker_col = "Ticker" if asset_type == "Stock" else "Crypto Pair"
+    starred_list = st.session_state["starred_stocks"] if asset_type == "Stock" else st.session_state["starred_crypto"]
+    
+    # Filter toggle for user favorites
+    show_starred_only = st.checkbox("Show ⭐ Starred Only", key=f"filter_starred_{key_id}")
+    
+    df_table = df.copy()
+    df_table["⭐ Star"] = df_table[ticker_col].isin(starred_list)
+    
+    # Place Star column first
+    cols = ["⭐ Star"] + [c for c in df_table.columns if c != "⭐ Star"]
+    df_table = df_table[cols]
+    
+    if show_starred_only:
+        df_table = df_table[df_table["⭐ Star"] == True]
+        if df_table.empty:
+            st.info("No starred items in this list yet. Check the ⭐ Star box to add assets to your watchlist.")
+            return
+
+    edited_df = st.data_editor(
+        df_table,
+        column_config={
+            "⭐ Star": st.column_config.CheckboxColumn(
+                "⭐ Favorite",
+                help="Check to star this asset and sync with your sidebar watchlist.",
+                default=False,
+            )
+        },
+        disabled=[c for c in df_table.columns if c != "⭐ Star"],
+        hide_index=True,
+        use_container_width=True,
+        key=f"editor_{key_id}"
+    )
+    
+    # Sync edited checkbox changes back to global session state
+    new_starred = edited_df[edited_df["⭐ Star"] == True][ticker_col].tolist()
+    unstarred = edited_df[edited_df["⭐ Star"] == False][ticker_col].tolist()
+    
+    updated_set = set(starred_list)
+    for t in new_starred:
+        updated_set.add(t)
+    for t in unstarred:
+        updated_set.discard(t)
+        
+    if asset_type == "Stock":
+        st.session_state["starred_stocks"] = list(updated_set)
+    else:
+        st.session_state["starred_crypto"] = list(updated_set)
+
 def render_live_stock_screener():
     st.markdown("---")
     st.header("🎯 Top 10 Quantitative Stock Trade Recommendations")
-    st.caption("Ranked by highest probability of execution and optimal risk-reward potential using site technical metrics.")
+    st.caption("Ranked by highest probability of execution and optimal risk-reward potential using technical metrics.")
     
     with st.spinner("Scanning equity streams & computing quantitative factor rankings..."):
         df_stock_longs, df_stock_shorts = fetch_live_stock_quant_picks()
     
     tab_s_long, tab_s_short = st.tabs(["🟢 Top 10 Stock Longs", "🔴 Top 10 Stock Shorts"])
     with tab_s_long:
-        if not df_stock_longs.empty:
-            st.dataframe(df_stock_longs, use_container_width=True, hide_index=True)
-        else:
-            st.info("No stocks currently meet quantitative threshold requirements in live streaming data.")
+        render_interactive_screener_table(df_stock_longs, "Stock", "stock_longs")
     with tab_s_short:
-        if not df_stock_shorts.empty:
-            st.dataframe(df_stock_shorts, use_container_width=True, hide_index=True)
-        else:
-            st.info("No stocks currently meet quantitative threshold requirements in live streaming data.")
+        render_interactive_screener_table(df_stock_shorts, "Stock", "stock_shorts")
 
 @st.cache_data(ttl=180)
 def fetch_live_crypto_quant_picks():
-    # Crypto universe including BTC-USD, ETH-USD, SOL-USD, O40092-USD
     crypto_universe = [
         "BTC-USD", "ETH-USD", "SOL-USD", "O40092-USD", "BNB-USD", "XRP-USD", 
         "ADA-USD", "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD", "SUI-USD", "NEAR-USD"
@@ -758,15 +850,9 @@ def render_live_crypto_screener():
         df_crypto_longs, df_crypto_shorts = fetch_live_crypto_quant_picks()
     tab_c_long, tab_c_short = st.tabs(["🟢 Live Top Crypto Longs", "🔴 Live Top Crypto Shorts"])
     with tab_c_long:
-        if not df_crypto_longs.empty:
-            st.dataframe(df_crypto_longs, use_container_width=True, hide_index=True)
-        else:
-            st.info("No crypto pairs currently match bullish quantitative rules in live streaming data.")
+        render_interactive_screener_table(df_crypto_longs, "Crypto", "crypto_longs")
     with tab_c_short:
-        if not df_crypto_shorts.empty:
-            st.dataframe(df_crypto_shorts, use_container_width=True, hide_index=True)
-        else:
-            st.info("No crypto pairs currently match bearish quantitative rules in live streaming data.")
+        render_interactive_screener_table(df_crypto_shorts, "Crypto", "crypto_shorts")
 
 # ==============================================================================
 # SECTION 4: MAIN TABBED NAVIGATION
@@ -781,10 +867,14 @@ tab_stocks, tab_crypto, tab_real_estate = st.tabs(
 with tab_stocks:
     st.subheader("📊 Quantitative Stock Analysis & Screener")
     
-    # Recommended stock selector & text fallback input
+    # Dynamic preset selector that lists ⭐ Starred items on top
+    starred_stock_options = st.session_state["starred_stocks"]
+    stock_options = ["NVDA", "AAPL", "VOO", "QQQ", "RUM"] + starred_stock_options
+    stock_options = sorted(list(set(stock_options))) + ["Custom Ticker Input"]
+    
     stock_preset = st.selectbox(
-        "Select Recommended Stock / Index", 
-        ["NVDA", "AAPL", "VOO", "QQQ", "RUM", "Custom Ticker Input"], 
+        "Select Stock / Index (⭐ Watchlist Tickers Included)", 
+        stock_options, 
         index=0,
         key="stock_preset_select"
     )
@@ -811,10 +901,13 @@ with tab_stocks:
 with tab_crypto:
     st.subheader("🪙 Cryptocurrency Market Scanner")
     
-    # Recommended crypto selector including requested assets
+    starred_crypto_options = st.session_state["starred_crypto"]
+    crypto_options = ["BTC-USD", "ETH-USD", "SOL-USD", "O40092-USD"] + starred_crypto_options
+    crypto_options = sorted(list(set(crypto_options))) + ["Custom Input"]
+    
     crypto_preset = st.selectbox(
-        "Select Crypto Asset", 
-        ["BTC-USD", "ETH-USD", "SOL-USD", "O40092-USD", "Custom Input"], 
+        "Select Crypto Asset (⭐ Watchlist Tickers Included)", 
+        crypto_options, 
         index=0,
         key="crypto_preset_select"
     )
