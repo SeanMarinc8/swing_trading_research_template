@@ -86,6 +86,7 @@ with col_header_right:
 st.sidebar.header("Global Controls")
 timeframe_options = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"]
 timeframe = st.sidebar.selectbox("Analysis Horizon", timeframe_options, index=4)
+
 st.sidebar.markdown("---")
 
 with st.sidebar.expander("📖 Indicator Cheat Sheet (Beginner Friendly)", expanded=False):
@@ -556,14 +557,14 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
 # ==============================================================================
 @st.cache_data(ttl=300)
 def fetch_live_stock_quant_picks():
-    # Expanded universe to ensure sufficient setup density across all market conditions
+    # Universe including user-recommended core picks: NVDA, AAPL, VOO, QQQ, RUM
     candidate_universe = [
-        "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "AMD", 
-        "NFLX", "PLTR", "INTC", "BAC", "JPM", "PANW", "UBER", "DIS", 
-        "SQ", "PYPL", "BA", "SNAP", "XOM", "CVX", "PFE", "MRK", "UNH",
-        "COST", "HD", "PG", "ABBV", "CRM", "ORCL", "NKE", "LLY", "AVGO",
-        "CSCO", "PEP", "TMO", "ACN", "MCD", "WAL", "WFC", "C", "MS",
-        "GS", "TXN", "QCOM", "AMAT", "MU", "SNOW", "SHOP"
+        "NVDA", "AAPL", "VOO", "QQQ", "RUM", "MSFT", "AMZN", "GOOGL", 
+        "META", "TSLA", "AMD", "NFLX", "PLTR", "INTC", "BAC", "JPM", 
+        "PANW", "UBER", "DIS", "SQ", "PYPL", "BA", "SNAP", "XOM", "CVX", 
+        "PFE", "MRK", "UNH", "COST", "HD", "PG", "ABBV", "CRM", "ORCL", 
+        "NKE", "LLY", "AVGO", "CSCO", "PEP", "TMO", "ACN", "MCD", "WAL", 
+        "WFC", "C", "MS", "GS", "TXN", "QCOM", "AMAT", "MU", "SNOW", "SHOP"
     ]
     
     long_candidates = []
@@ -589,8 +590,7 @@ def fetch_live_stock_quant_picks():
                 atr_ratio = atr / cp if cp > 0 else 0.03
                 est_days = int(max(5, min(30, round(2.0 / atr_ratio))))
                 hold_horizon = f"{est_days - 2}–{est_days + 3} Trading Days"
-
-                # Quantitative Factor Logic using on-site technical indicators
+                
                 # LONG Setup Evaluator
                 if cp >= (vwap * 0.985) and rsi < 68 and macd_h > -0.05:
                     buy_target = min(cp, bb_lower) if (cp - bb_lower) > 0 else cp
@@ -600,7 +600,6 @@ def fetch_live_stock_quant_picks():
                     reward_pct = max(0.1, abs((target - buy_target) / buy_target) * 100)
                     rr_ratio = reward_pct / risk_pct
                     
-                    # On-Site Technical Likelihood & Return Scoring (0 to 100 Scale)
                     score = (
                         (min(rvol, 3.0) / 3.0 * 30) +
                         (max(0, 70 - rsi) / 40 * 25) +
@@ -625,7 +624,6 @@ def fetch_live_stock_quant_picks():
                         "_sort_score": score,
                         "_return_pct": reward_pct
                     })
-
                 # SHORT Setup Evaluator
                 elif cp <= (vwap * 1.015) and macd_h < 0.05 and rsi > 32:
                     target = cp - (2.0 * atr)
@@ -660,8 +658,7 @@ def fetch_live_stock_quant_picks():
                     })
         except Exception:
             pass
-
-    # Sort candidates by Quant Score & Expected Return % then take TOP 10
+            
     df_long = pd.DataFrame(long_candidates)
     if not df_long.empty:
         df_long = df_long.sort_values(by=["_sort_score", "_return_pct"], ascending=[False, False]).head(10)
@@ -671,7 +668,6 @@ def fetch_live_stock_quant_picks():
     if not df_short.empty:
         df_short = df_short.sort_values(by=["_sort_score", "_return_pct"], ascending=[False, False]).head(10)
         df_short = df_short.drop(columns=["_sort_score", "_return_pct"])
-
     return df_long, df_short
 
 def render_live_stock_screener():
@@ -679,7 +675,7 @@ def render_live_stock_screener():
     st.header("🎯 Top 10 Quantitative Stock Trade Recommendations")
     st.caption("Ranked by highest probability of execution and optimal risk-reward potential using site technical metrics.")
     
-    with st.spinner("Scanning 50 equity streams & computing quantitative factor rankings..."):
+    with st.spinner("Scanning equity streams & computing quantitative factor rankings..."):
         df_stock_longs, df_stock_shorts = fetch_live_stock_quant_picks()
     
     tab_s_long, tab_s_short = st.tabs(["🟢 Top 10 Stock Longs", "🔴 Top 10 Stock Shorts"])
@@ -696,9 +692,10 @@ def render_live_stock_screener():
 
 @st.cache_data(ttl=180)
 def fetch_live_crypto_quant_picks():
+    # Crypto universe including BTC-USD, ETH-USD, SOL-USD, O40092-USD
     crypto_universe = [
-        "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "ADA-USD", 
-        "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD", "SUI-USD", "NEAR-USD"
+        "BTC-USD", "ETH-USD", "SOL-USD", "O40092-USD", "BNB-USD", "XRP-USD", 
+        "ADA-USD", "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD", "SUI-USD", "NEAR-USD"
     ]
     long_crypto = []
     short_crypto = []
@@ -716,11 +713,9 @@ def fetch_live_crypto_quant_picks():
                 atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.04
                 fmt = "${:,.4f}" if cp < 1.0 else "${:,.2f}"
                 
-                # Dynamic crypto hold time calculated based on 24/7 trading volatility velocity
                 atr_ratio = atr / cp if cp > 0 else 0.04
                 est_days = int(max(3, min(21, round(1.5 / atr_ratio))))
                 hold_horizon = f"{est_days - 1}–{est_days + 3} Days"
-
                 if (cp > vwap and macd_h > 0) or (rsi < 35):
                     target = cp + (2.5 * atr)
                     sl = cp - (1.5 * atr)
@@ -785,7 +780,19 @@ tab_stocks, tab_crypto, tab_real_estate = st.tabs(
 # ------------------------------------------------------------------------------
 with tab_stocks:
     st.subheader("📊 Quantitative Stock Analysis & Screener")
-    stock_ticker = st.text_input("Enter Stock Ticker", value="NVDA", key="stock_input").upper()
+    
+    # Recommended stock selector & text fallback input
+    stock_preset = st.selectbox(
+        "Select Recommended Stock / Index", 
+        ["NVDA", "AAPL", "VOO", "QQQ", "RUM", "Custom Ticker Input"], 
+        index=0,
+        key="stock_preset_select"
+    )
+    
+    if stock_preset == "Custom Ticker Input":
+        stock_ticker = st.text_input("Enter Stock Ticker", value="NVDA", key="stock_input").upper()
+    else:
+        stock_ticker = stock_preset
     
     if stock_ticker:
         st_obj = yf.Ticker(stock_ticker)
@@ -803,12 +810,20 @@ with tab_stocks:
 # ------------------------------------------------------------------------------
 with tab_crypto:
     st.subheader("🪙 Cryptocurrency Market Scanner")
-    crypto_preset = st.selectbox("Select Crypto Asset", ["BTC-USD", "ETH-USD", "SOL-USD", "Custom Input"], index=0)
+    
+    # Recommended crypto selector including requested assets
+    crypto_preset = st.selectbox(
+        "Select Crypto Asset", 
+        ["BTC-USD", "ETH-USD", "SOL-USD", "O40092-USD", "Custom Input"], 
+        index=0,
+        key="crypto_preset_select"
+    )
     
     if crypto_preset == "Custom Input":
         crypto_ticker = st.text_input("Custom Pair (e.g. ADA-USD)", value="ADA-USD", key="crypto_input").upper()
     else:
         crypto_ticker = crypto_preset
+        
     if crypto_ticker:
         cr_obj = yf.Ticker(crypto_ticker)
         crypto_data = cr_obj.history(period=timeframe)
@@ -817,6 +832,7 @@ with tab_crypto:
             render_full_dashboard(df_crypto_processed, crypto_ticker, asset_type="Crypto", ticker_obj=cr_obj)
         else:
             st.error(f"Could not retrieve crypto data for pair: {crypto_ticker}.")
+            
     render_live_crypto_screener()
 
 # ------------------------------------------------------------------------------
