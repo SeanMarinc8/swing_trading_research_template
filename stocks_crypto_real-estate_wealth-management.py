@@ -556,7 +556,6 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
 # ==============================================================================
 @st.cache_data(ttl=300)
 def fetch_live_stock_quant_picks():
-    # Expanded universe to ensure sufficient setup density across all market conditions
     candidate_universe = [
         "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "AMD", 
         "NFLX", "PLTR", "INTC", "BAC", "JPM", "PANW", "UBER", "DIS", 
@@ -585,13 +584,10 @@ def fetch_live_stock_quant_picks():
                 bb_lower = latest["BB_Lower"] if pd.notnull(latest["BB_Lower"]) else cp
                 bb_upper = latest["BB_Upper"] if pd.notnull(latest["BB_Upper"]) else cp
                 
-                # Dynamic calculated hold time in trading days based on ATR relative volatility
                 atr_ratio = atr / cp if cp > 0 else 0.03
                 est_days = int(max(5, min(30, round(2.0 / atr_ratio))))
                 hold_horizon = f"{est_days - 2}–{est_days + 3} Trading Days"
 
-                # Quantitative Factor Logic using on-site technical indicators
-                # LONG Setup Evaluator
                 if cp >= (vwap * 0.985) and rsi < 68 and macd_h > -0.05:
                     buy_target = min(cp, bb_lower) if (cp - bb_lower) > 0 else cp
                     target = buy_target + (2.0 * atr)
@@ -600,7 +596,6 @@ def fetch_live_stock_quant_picks():
                     reward_pct = max(0.1, abs((target - buy_target) / buy_target) * 100)
                     rr_ratio = reward_pct / risk_pct
                     
-                    # On-Site Technical Likelihood & Return Scoring (0 to 100 Scale)
                     score = (
                         (min(rvol, 3.0) / 3.0 * 30) +
                         (max(0, 70 - rsi) / 40 * 25) +
@@ -626,7 +621,6 @@ def fetch_live_stock_quant_picks():
                         "_return_pct": reward_pct
                     })
 
-                # SHORT Setup Evaluator
                 elif cp <= (vwap * 1.015) and macd_h < 0.05 and rsi > 32:
                     target = cp - (2.0 * atr)
                     sl = cp + (1.5 * atr)
@@ -661,12 +655,11 @@ def fetch_live_stock_quant_picks():
         except Exception:
             pass
 
-    # Sort candidates by Quant Score & Expected Return % then take TOP 10
     df_long = pd.DataFrame(long_candidates)
     if not df_long.empty:
         df_long = df_long.sort_values(by=["_sort_score", "_return_pct"], ascending=[False, False]).head(10)
         df_long = df_long.drop(columns=["_sort_score", "_return_pct"])
-        
+
     df_short = pd.DataFrame(short_candidates)
     if not df_short.empty:
         df_short = df_short.sort_values(by=["_sort_score", "_return_pct"], ascending=[False, False]).head(10)
@@ -674,192 +667,35 @@ def fetch_live_stock_quant_picks():
 
     return df_long, df_short
 
-def render_live_stock_screener():
-    st.markdown("---")
-    st.header("🎯 Top 10 Quantitative Stock Trade Recommendations")
-    st.caption("Ranked by highest probability of execution and optimal risk-reward potential using site technical metrics.")
-    
-    with st.spinner("Scanning 50 equity streams & computing quantitative factor rankings..."):
-        df_stock_longs, df_stock_shorts = fetch_live_stock_quant_picks()
-    
-    tab_s_long, tab_s_short = st.tabs(["🟢 Top 10 Stock Longs", "🔴 Top 10 Stock Shorts"])
-    with tab_s_long:
-        if not df_stock_longs.empty:
-            st.dataframe(df_stock_longs, use_container_width=True, hide_index=True)
-        else:
-            st.info("No stocks currently meet quantitative threshold requirements in live streaming data.")
-    with tab_s_short:
-        if not df_stock_shorts.empty:
-            st.dataframe(df_stock_shorts, use_container_width=True, hide_index=True)
-        else:
-            st.info("No stocks currently meet quantitative threshold requirements in live streaming data.")
-
-@st.cache_data(ttl=180)
-def fetch_live_crypto_quant_picks():
-    crypto_universe = [
-        "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "ADA-USD", 
-        "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD", "SUI-USD", "NEAR-USD"
-    ]
-    long_crypto = []
-    short_crypto = []
-    for pair in crypto_universe:
-        try:
-            tk = yf.Ticker(pair)
-            hist = tk.history(period="1mo")
-            if not hist.empty and len(hist) > 14:
-                df = compute_all_indicators(hist)
-                latest = df.iloc[-1]
-                cp = latest["Close"]
-                vwap = latest["VWAP"] if pd.notnull(latest["VWAP"]) else cp
-                rsi = latest["RSI"] if pd.notnull(latest["RSI"]) else 50.0
-                macd_h = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
-                atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.04
-                fmt = "${:,.4f}" if cp < 1.0 else "${:,.2f}"
-                
-                # Dynamic crypto hold time calculated based on 24/7 trading volatility velocity
-                atr_ratio = atr / cp if cp > 0 else 0.04
-                est_days = int(max(3, min(21, round(1.5 / atr_ratio))))
-                hold_horizon = f"{est_days - 1}–{est_days + 3} Days"
-
-                if (cp > vwap and macd_h > 0) or (rsi < 35):
-                    target = cp + (2.5 * atr)
-                    sl = cp - (1.5 * atr)
-                    long_crypto.append({
-                        "Crypto Pair": pair,
-                        "Current Price": fmt.format(cp),
-                        "Entry Price": fmt.format(cp),
-                        "Exit Price Target": fmt.format(target),
-                        "Stop Loss": fmt.format(sl),
-                        "Expected Hold Time": hold_horizon,
-                        "24h VWAP": fmt.format(vwap),
-                        "14-RSI": f"{rsi:.1f}",
-                        "ATR Range": fmt.format(atr),
-                        "Signal Driver": "OVERSOLD BOUNCE" if rsi < 35 else "BULLISH MOMENTUM EXPANSION"
-                    })
-                elif (cp < vwap and macd_h < 0) or (rsi > 70):
-                    target = cp - (2.5 * atr)
-                    sl = cp + (1.5 * atr)
-                    short_crypto.append({
-                        "Crypto Pair": pair,
-                        "Current Price": fmt.format(cp),
-                        "Entry Price": fmt.format(cp),
-                        "Exit Price Target": fmt.format(target),
-                        "Stop Loss": fmt.format(sl),
-                        "Expected Hold Time": hold_horizon,
-                        "24h VWAP": fmt.format(vwap),
-                        "14-RSI": f"{rsi:.1f}",
-                        "ATR Range": fmt.format(atr),
-                        "Signal Driver": "OVERBOUGHT EXHAUSTION" if rsi > 70 else "BEARISH VWAP BREAKDOWN"
-                    })
-        except Exception:
-            pass
-    return pd.DataFrame(long_crypto), pd.DataFrame(short_crypto)
-
-def render_live_crypto_screener():
-    st.markdown("---")
-    st.header("⚡ Live 24/7 Crypto Quant Picks & Recommendations")
-    st.caption("Scans digital asset markets in real-time applying crypto-specific quantitative metrics.")
-    with st.spinner("Streaming 24/7 crypto exchange data..."):
-        df_crypto_longs, df_crypto_shorts = fetch_live_crypto_quant_picks()
-    tab_c_long, tab_c_short = st.tabs(["🟢 Live Top Crypto Longs", "🔴 Live Top Crypto Shorts"])
-    with tab_c_long:
-        if not df_crypto_longs.empty:
-            st.dataframe(df_crypto_longs, use_container_width=True, hide_index=True)
-        else:
-            st.info("No crypto pairs currently match bullish quantitative rules in live streaming data.")
-    with tab_c_short:
-        if not df_crypto_shorts.empty:
-            st.dataframe(df_crypto_shorts, use_container_width=True, hide_index=True)
-        else:
-            st.info("No crypto pairs currently match bearish quantitative rules in live streaming data.")
-
 # ==============================================================================
-# SECTION 4: MAIN TABBED NAVIGATION
+# SECTION 4: MAIN INTERFACE & CONTROLLER
 # ==============================================================================
-tab_stocks, tab_crypto, tab_real_estate = st.tabs(
-    ["📊 Stock Scanner", "🪙 Crypto Scanner", "🏠 Real Estate Evaluation"]
-)
+asset_type = st.sidebar.radio("Asset Class", ["Stock", "Crypto"])
 
-# ------------------------------------------------------------------------------
-# TAB 1: STOCK SCANNER
-# ------------------------------------------------------------------------------
-with tab_stocks:
-    st.subheader("📊 Quantitative Stock Analysis & Screener")
-    stock_ticker = st.text_input("Enter Stock Ticker", value="NVDA", key="stock_input").upper()
-    
-    if stock_ticker:
-        st_obj = yf.Ticker(stock_ticker)
-        stock_data = st_obj.history(period=timeframe)
-        if not stock_data.empty:
-            df_processed = compute_all_indicators(stock_data)
-            render_full_dashboard(df_processed, stock_ticker, asset_type="Stock", ticker_obj=st_obj)
-        else:
-            st.error(f"Could not retrieve stock data for symbol: {stock_ticker}")
-    
-    render_live_stock_screener()
+# Recommended ticker options requested by the user
+recommended_stocks = ["NVDA", "VOO", "RUM"]
+recommended_cryptos = ["BTC-USD", "ETH-USD", "040092-USD"]
 
-# ------------------------------------------------------------------------------
-# TAB 2: CRYPTO SCANNER
-# ------------------------------------------------------------------------------
-with tab_crypto:
-    st.subheader("🪙 Cryptocurrency Market Scanner")
-    crypto_preset = st.selectbox("Select Crypto Asset", ["BTC-USD", "ETH-USD", "SOL-USD", "Custom Input"], index=0)
-    
-    if crypto_preset == "Custom Input":
-        crypto_ticker = st.text_input("Custom Pair (e.g. ADA-USD)", value="ADA-USD", key="crypto_input").upper()
-    else:
-        crypto_ticker = crypto_preset
-    if crypto_ticker:
-        cr_obj = yf.Ticker(crypto_ticker)
-        crypto_data = cr_obj.history(period=timeframe)
-        if not crypto_data.empty:
-            df_crypto_processed = compute_all_indicators(crypto_data)
-            render_full_dashboard(df_crypto_processed, crypto_ticker, asset_type="Crypto", ticker_obj=cr_obj)
-        else:
-            st.error(f"Could not retrieve crypto data for pair: {crypto_ticker}.")
-    render_live_crypto_screener()
+options = recommended_stocks if asset_type == "Stock" else recommended_cryptos
 
-# ------------------------------------------------------------------------------
-# TAB 3: REAL ESTATE EVALUATION
-# ------------------------------------------------------------------------------
-with tab_real_estate:
-    st.header("🏠 Real Estate Property Underwriting & Portfolio Engine")
-    
-    col_re_ctrl1, col_re_ctrl2, col_re_ctrl3 = st.columns(3)
-    with col_re_ctrl1:
-        analysis_mode = st.radio("Analysis Mode", ["Specific Property Address", "Regional Market Scout"], index=0, key="re_analysis_mode")
-    with col_re_ctrl2:
-        investment_intent = st.selectbox("Investment Intent", ["Long-Term Rental (Buy & Hold)", "Short-Term Rental", "Fix & Flip"], key="re_investment_intent")
-    with col_re_ctrl3:
-        property_type = st.selectbox("Property Type", ["Single Family", "Multi-Family (2-4 Units)", "Commercial"], key="re_property_type")
-    
-    st.markdown("---")
-    if analysis_mode == "Specific Property Address":
-        address_input = st.text_input("Property Address", value="1244 S Michigan Ave, Chicago, IL 60605", key="re_address_input")
-        col_p1, col_p2, col_p3, col_p4 = st.columns(4)
-        purchase_price = col_p1.number_input("Purchase Price ($)", value=450000, step=10000, key="re_purchase_price")
-        down_payment_pct = col_p2.slider("Down Payment (%)", 0, 50, 20, key="re_down_payment_pct") / 100
-        interest_rate = col_p3.slider("Interest Rate (%)", 3.0, 12.0, 6.5, key="re_interest_rate") / 100
-        loan_term_years = col_p4.selectbox("Loan Term (Years)", [30, 15, 10], index=0, key="re_loan_term_years")
-        est_monthly_rent = st.number_input("Est. Monthly Rent ($)", value=3200, step=100, key="re_ltr_rent")
+st.sidebar.markdown("### Select or Custom Search")
+ticker_selection = st.sidebar.selectbox("Recommended Options", options)
+custom_ticker = st.sidebar.text_input("Or enter Custom Ticker (e.g. AAPL, SOL-USD)", "").strip().upper()
+
+# Allow custom ticker entry if provided, otherwise default to selected option
+ticker_name = custom_ticker if custom_ticker else ticker_selection
+
+if ticker_name:
+    try:
+        ticker_obj = yf.Ticker(ticker_name)
+        hist_df = ticker_obj.history(period=timeframe)
         
-        down_payment = purchase_price * down_payment_pct
-        loan_amount = purchase_price - down_payment
-        monthly_rate = interest_rate / 12
-        num_payments = loan_term_years * 12
-        monthly_mortgage = (loan_amount * (monthly_rate * (1 + monthly_rate) ** num_payments) / ((1 + monthly_rate) ** num_payments - 1)) if loan_amount > 0 else 0
-        monthly_cash_flow = est_monthly_rent - monthly_mortgage - (purchase_price * 0.018 / 12)
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Est. Monthly Mortgage", f"${monthly_mortgage:,.0f}")
-        m2.metric("Est. Net Monthly Cash Flow", f"${monthly_cash_flow:,.0f}")
-        m3.metric("Down Payment Required", f"${down_payment:,.0f}")
-
-# ==============================================================================
-# SECTION 5: FOOTER
-# ==============================================================================
-st.markdown("---")
-col_ft_left, col_ft_right = st.columns([4, 1])
-with col_ft_left:
-    st.caption("© 2026 Core Market Intelligence (CMI). All Quantitative Models & Market Data Streams.")
-with col_ft_right:
-    st.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
+        if hist_df.empty:
+            st.error(f"No market data found for ticker **'{ticker_name}'**. Please verify the symbol.")
+        else:
+            processed_df = compute_all_indicators(hist_df)
+            render_full_dashboard(processed_df, ticker_name, asset_type, ticker_obj)
+    except Exception as e:
+        st.error(f"Error retrieving data for **{ticker_name}**: {str(e)}")
+else:
+    st.info("Please select or enter a ticker symbol to begin analysis.")
