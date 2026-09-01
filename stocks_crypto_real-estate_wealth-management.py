@@ -501,7 +501,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     
     st.markdown("---")
     st.header("📋 Financial Statements & Fundamental Overview")
-    if asset_type == "Stock":
+    if asset_type in ["Stock", "Real Estate"]:
         try:
             info = ticker_obj.info
             income_stmt = ticker_obj.financials
@@ -552,137 +552,29 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     render_news_feed(ticker_obj, ticker_name)
 
 # ==============================================================================
-# REAL-TIME QUANTITATIVE SCREENER FUNCTIONS
+# SECTION 4: MAIN INTERFACE & CONTROLLER (TABBED ASSET CLASSES)
 # ==============================================================================
-@st.cache_data(ttl=300)
-def fetch_live_stock_quant_picks():
-    candidate_universe = [
-        "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "AMD", 
-        "NFLX", "PLTR", "INTC", "BAC", "JPM", "PANW", "UBER", "DIS", 
-        "SQ", "PYPL", "BA", "SNAP", "XOM", "CVX", "PFE", "MRK", "UNH",
-        "COST", "HD", "PG", "ABBV", "CRM", "ORCL", "NKE", "LLY", "AVGO",
-        "CSCO", "PEP", "TMO", "ACN", "MCD", "WAL", "WFC", "C", "MS",
-        "GS", "TXN", "QCOM", "AMAT", "MU", "SNOW", "SHOP"
-    ]
-    
-    long_candidates = []
-    short_candidates = []
-    
-    for t in candidate_universe:
-        try:
-            tk = yf.Ticker(t)
-            hist = tk.history(period="2mo")
-            if not hist.empty and len(hist) > 20:
-                df = compute_all_indicators(hist)
-                latest = df.iloc[-1]
-                cp = latest["Close"]
-                vwap = latest["VWAP"] if pd.notnull(latest["VWAP"]) else cp
-                rsi = latest["RSI"] if pd.notnull(latest["RSI"]) else 50.0
-                macd_h = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
-                rvol = latest["RVOL"] if pd.notnull(latest["RVOL"]) else 1.0
-                atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.03
-                bb_lower = latest["BB_Lower"] if pd.notnull(latest["BB_Lower"]) else cp
-                bb_upper = latest["BB_Upper"] if pd.notnull(latest["BB_Upper"]) else cp
-                
-                atr_ratio = atr / cp if cp > 0 else 0.03
-                est_days = int(max(5, min(30, round(2.0 / atr_ratio))))
-                hold_horizon = f"{est_days - 2}–{est_days + 3} Trading Days"
+asset_type = st.sidebar.radio("Asset Class", ["Stock", "Crypto", "Real Estate"])
 
-                if cp >= (vwap * 0.985) and rsi < 68 and macd_h > -0.05:
-                    buy_target = min(cp, bb_lower) if (cp - bb_lower) > 0 else cp
-                    target = buy_target + (2.0 * atr)
-                    sl = buy_target - (1.5 * atr)
-                    risk_pct = max(0.1, abs((buy_target - sl) / buy_target) * 100)
-                    reward_pct = max(0.1, abs((target - buy_target) / buy_target) * 100)
-                    rr_ratio = reward_pct / risk_pct
-                    
-                    score = (
-                        (min(rvol, 3.0) / 3.0 * 30) +
-                        (max(0, 70 - rsi) / 40 * 25) +
-                        (min(rr_ratio, 3.0) / 3.0 * 25) +
-                        (20 if macd_h > 0 else 5)
-                    )
-                    
-                    long_candidates.append({
-                        "Ticker": t,
-                        "Quant Score": round(score, 1),
-                        "Current Price": f"${cp:.2f}",
-                        "Entry Price Target": f"${buy_target:.2f}",
-                        "Exit Target Price": f"${target:.2f}",
-                        "Stop Loss": f"${sl:.2f}",
-                        "Est. Return": f"+{reward_pct:.1f}%",
-                        "Expected Hold Time": hold_horizon,
-                        "VWAP Baseline": f"${vwap:.2f}",
-                        "14-RSI": f"{rsi:.1f}",
-                        "RVOL": f"{rvol:.2f}x",
-                        "Risk Profile": f"{risk_pct:.2f}% (R: +{reward_pct:.1f}%)",
-                        "Quant Setup": "ACCUMULATE / BREAKOUT" if rvol > 1.2 else "VWAP SUPPORT BOUNCE",
-                        "_sort_score": score,
-                        "_return_pct": reward_pct
-                    })
-
-                elif cp <= (vwap * 1.015) and macd_h < 0.05 and rsi > 32:
-                    target = cp - (2.0 * atr)
-                    sl = cp + (1.5 * atr)
-                    risk_pct = max(0.1, abs((sl - cp) / cp) * 100)
-                    reward_pct = max(0.1, abs((cp - target) / cp) * 100)
-                    rr_ratio = reward_pct / risk_pct
-                    
-                    score = (
-                        (min(rvol, 3.0) / 3.0 * 30) +
-                        (max(0, rsi - 30) / 40 * 25) +
-                        (min(rr_ratio, 3.0) / 3.0 * 25) +
-                        (20 if macd_h < 0 else 5)
-                    )
-                    
-                    short_candidates.append({
-                        "Ticker": t,
-                        "Quant Score": round(score, 1),
-                        "Current Price": f"${cp:.2f}",
-                        "Entry Price Target": f"${cp:.2f}",
-                        "Exit Target Price": f"${target:.2f}",
-                        "Stop Loss": f"${sl:.2f}",
-                        "Est. Return": f"+{reward_pct:.1f}%",
-                        "Expected Hold Time": hold_horizon,
-                        "VWAP Baseline": f"${vwap:.2f}",
-                        "14-RSI": f"{rsi:.1f}",
-                        "RVOL": f"{rvol:.2f}x",
-                        "Risk Profile": f"{risk_pct:.2f}% (R: +{reward_pct:.1f}%)",
-                        "Quant Setup": "HEAVY DISTRIBUTION" if rvol > 1.2 else "VWAP RESISTANCE REJECT",
-                        "_sort_score": score,
-                        "_return_pct": reward_pct
-                    })
-        except Exception:
-            pass
-
-    df_long = pd.DataFrame(long_candidates)
-    if not df_long.empty:
-        df_long = df_long.sort_values(by=["_sort_score", "_return_pct"], ascending=[False, False]).head(10)
-        df_long = df_long.drop(columns=["_sort_score", "_return_pct"])
-
-    df_short = pd.DataFrame(short_candidates)
-    if not df_short.empty:
-        df_short = df_short.sort_values(by=["_sort_score", "_return_pct"], ascending=[False, False]).head(10)
-        df_short = df_short.drop(columns=["_sort_score", "_return_pct"])
-
-    return df_long, df_short
-
-# ==============================================================================
-# SECTION 4: MAIN INTERFACE & CONTROLLER
-# ==============================================================================
-asset_type = st.sidebar.radio("Asset Class", ["Stock", "Crypto"])
-
-# Recommended ticker options requested by the user
 recommended_stocks = ["NVDA", "VOO", "RUM"]
-recommended_cryptos = ["BTC-USD", "ETH-USD", "040092-USD"]
+recommended_cryptos = ["BTC-USD", "ETH-USD", "SOL-USD"]
+recommended_reits = ["O", "PLD", "AMT", "SPG", "EQIX"]
 
-options = recommended_stocks if asset_type == "Stock" else recommended_cryptos
+if asset_type == "Stock":
+    options = recommended_stocks
+    custom_placeholder = "e.g. AAPL, MSFT, TSLA"
+elif asset_type == "Crypto":
+    options = recommended_cryptos
+    custom_placeholder = "e.g. BTC-USD, ETH-USD, SOL-USD"
+else: # Real Estate
+    options = recommended_reits
+    custom_placeholder = "e.g. O, PLD, AMT, SPG"
 
 st.sidebar.markdown("### Select or Custom Search")
 ticker_selection = st.sidebar.selectbox("Recommended Options", options)
-custom_ticker = st.sidebar.text_input("Or enter Custom Ticker (e.g. AAPL, SOL-USD)", "").strip().upper()
+custom_ticker = st.sidebar.text_input(f"Or enter Custom Ticker ({custom_placeholder})", "").strip().upper()
 
-# Allow custom ticker entry if provided, otherwise default to selected option
+# Primary ticker selection
 ticker_name = custom_ticker if custom_ticker else ticker_selection
 
 if ticker_name:
