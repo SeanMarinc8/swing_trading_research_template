@@ -83,7 +83,6 @@ with col_header_right:
 # ==============================================================================
 # SECTION 2: SESSION STATE & SIDEBAR FAVORITES WATCHLIST
 # ==============================================================================
-# Initialize default starred assets in session state if not already defined
 if "starred_stocks" not in st.session_state:
     st.session_state["starred_stocks"] = ["NVDA", "AAPL"]
 
@@ -423,6 +422,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     prev = df.iloc[-2]
     fmt = "{:,.3f}" if asset_type == "Crypto" else "{:,.2f}"
     forecast_df, buy_target, sell_target, stop_loss, daily_vector = generate_predictive_model(df)
+    
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Current Price", f"${fmt.format(latest['Close'])}", f"{fmt.format(latest['Close']-prev['Close'])}")
     c2.metric("VWAP (Inst. Benchmark)", f"${fmt.format(latest['VWAP'])}" if pd.notnull(latest["VWAP"]) else "N/A")
@@ -430,25 +430,6 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
     c4.metric("Bollinger %B", f"{latest['BB_Percent']:.2f}" if pd.notnull(latest["BB_Percent"]) else "N/A")
     c5.metric("RVOL (Volume Multiplier)", f"{latest['RVOL']:.2f}x" if pd.notnull(latest["RVOL"]) else "N/A")
     c6.metric("14-Period ATR (Daily Range)", f"${fmt.format(latest['ATR'])}" if pd.notnull(latest["ATR"]) else "N/A")
-    
-    # Interactive Star Toggle Button for current viewed asset
-    is_asset_crypto = (asset_type == "Crypto")
-    starred_list = st.session_state["starred_crypto"] if is_asset_crypto else st.session_state["starred_stocks"]
-    is_starred = ticker_name in starred_list
-    
-    star_col1, star_col2 = st.columns([1, 5])
-    with star_col1:
-        star_btn_label = "⭐ Starred in Watchlist" if is_starred else "☆ Add to Favorites"
-        if st.button(star_btn_label, key=f"star_toggle_{ticker_name}"):
-            if is_starred:
-                starred_list.remove(ticker_name)
-            else:
-                starred_list.append(ticker_name)
-            if is_asset_crypto:
-                st.session_state["starred_crypto"] = starred_list
-            else:
-                st.session_state["starred_stocks"] = starred_list
-            st.rerun()
 
     st.subheader("🚦 Actionable Trade Recommendation")
     bull_points = 0
@@ -723,13 +704,11 @@ def render_interactive_screener_table(df, asset_type, key_id):
     ticker_col = "Ticker" if asset_type == "Stock" else "Crypto Pair"
     starred_list = st.session_state["starred_stocks"] if asset_type == "Stock" else st.session_state["starred_crypto"]
     
-    # Filter toggle for user favorites
     show_starred_only = st.checkbox("Show ⭐ Starred Only", key=f"filter_starred_{key_id}")
     
     df_table = df.copy()
     df_table["⭐ Star"] = df_table[ticker_col].isin(starred_list)
     
-    # Place Star column first
     cols = ["⭐ Star"] + [c for c in df_table.columns if c != "⭐ Star"]
     df_table = df_table[cols]
     
@@ -754,7 +733,6 @@ def render_interactive_screener_table(df, asset_type, key_id):
         key=f"editor_{key_id}"
     )
     
-    # Sync edited checkbox changes back to global session state
     new_starred = edited_df[edited_df["⭐ Star"] == True][ticker_col].tolist()
     unstarred = edited_df[edited_df["⭐ Star"] == False][ticker_col].tolist()
     
@@ -867,7 +845,6 @@ tab_stocks, tab_crypto, tab_real_estate = st.tabs(
 with tab_stocks:
     st.subheader("📊 Quantitative Stock Analysis & Screener")
     
-    # Dynamic preset selector that lists ⭐ Starred items on top
     starred_stock_options = st.session_state["starred_stocks"]
     stock_options = ["NVDA", "AAPL", "VOO", "QQQ", "RUM"] + starred_stock_options
     stock_options = sorted(list(set(stock_options))) + ["Custom Ticker Input"]
