@@ -1,13 +1,13 @@
 import base64
 from datetime import datetime, timedelta
+import urllib.request
+import xml.etree.ElementTree as ET
 import altair as alt
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
-import xml.etree.ElementTree as ET
-import urllib.request
 
 # ==============================================================================
 # SECTION 1: GLOBAL PAGE CONFIGURATION & STYLING
@@ -53,31 +53,6 @@ st.markdown(
         margin-bottom: 15px;
         color: #721c24;
     }
-    .re-metric-card {
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-top: 4px solid #00ACC1;
-        padding: 14px;
-        border-radius: 8px;
-        margin-bottom: 12px;
-    }
-    .re-metric-card h4 {
-        margin: 0 0 6px 0;
-        font-size: 13px;
-        color: #6c757d;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .re-metric-card .val {
-        font-size: 22px;
-        font-weight: 800;
-        color: #111;
-        margin-bottom: 4px;
-    }
-    .re-metric-card .subtext {
-        font-size: 11px;
-        color: #495057;
-    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -100,157 +75,193 @@ st.sidebar.markdown("---")
 
 col_header_left, col_header_right = st.columns([3, 1])
 with col_header_left:
-    st.title("📈 Institutional Trading & Real Estate Predictive Analytics")
+    st.title("📈 Institutional Trading & Predictive Analytics")
     st.caption("Powered by **CMI (Core Market Intelligence)** Quantitative Engine")
 with col_header_right:
     st.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
 
 # ==============================================================================
-# SECTION 2: SESSION STATE & CONDITIONAL SIDEBAR WATCHLIST
+# SECTION 2: SESSION STATE & SIDEBAR CONTROLS
 # ==============================================================================
 if "starred_stocks" not in st.session_state:
     st.session_state["starred_stocks"] = ["NVDA", "AAPL"]
-
 if "starred_crypto" not in st.session_state:
     st.session_state["starred_crypto"] = ["BTC-USD", "ETH-USD"]
 
-if "active_tab" not in st.session_state:
-    st.session_state["active_tab"] = "stocks"
+st.sidebar.header("Global Controls")
+timeframe_options = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"]
+timeframe = st.sidebar.selectbox("Analysis Horizon", timeframe_options, index=4)
 
-# Only show global stock/crypto timeframe & watchlist controls if NOT in Real Estate mode
-if st.session_state.get("active_tab") != "real_estate":
-    st.sidebar.header("Global Controls")
-    timeframe_options = ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"]
-    timeframe = st.sidebar.selectbox("Analysis Horizon", timeframe_options, index=4)
+st.sidebar.markdown("---")
+st.sidebar.subheader("⭐ Favorite Watchlist")
 
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("⭐ Favorite Watchlist")
+stock_watchlist_options = [
+    "NVDA", "AAPL", "VOO", "QQQ", "RUM", "MSFT", "AMZN", "GOOGL", 
+    "META", "TSLA", "AMD", "NFLX", "PLTR", "INTC", "BAC", "JPM", 
+    "PANW", "UBER", "DIS", "SQ", "PYPL", "BA", "SNAP", "XOM", "CVX"
+]
+starred_stocks_selected = st.sidebar.multiselect(
+    "Star Favorite Stocks",
+    options=sorted(list(set(stock_watchlist_options + st.session_state["starred_stocks"]))),
+    default=st.session_state["starred_stocks"],
+    key="sb_starred_stocks"
+)
+st.session_state["starred_stocks"] = starred_stocks_selected
 
-    stock_watchlist_options = [
-        "NVDA", "AAPL", "VOO", "QQQ", "RUM", "MSFT", "AMZN", "GOOGL", 
-        "META", "TSLA", "AMD", "NFLX", "PLTR", "INTC", "BAC", "JPM", 
-        "PANW", "UBER", "DIS", "SQ", "PYPL", "BA", "SNAP", "XOM", "CVX"
-    ]
-    starred_stocks_selected = st.sidebar.multiselect(
-        "Star Favorite Stocks",
-        options=sorted(list(set(stock_watchlist_options + st.session_state["starred_stocks"]))),
-        default=st.session_state["starred_stocks"],
-        key="sb_starred_stocks"
-    )
-    st.session_state["starred_stocks"] = starred_stocks_selected
+crypto_watchlist_options = [
+    "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", 
+    "ADA-USD", "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD", "SUI-USD", "NEAR-USD"
+]
+starred_crypto_selected = st.sidebar.multiselect(
+    "Star Favorite Crypto",
+    options=sorted(list(set(crypto_watchlist_options + st.session_state["starred_crypto"]))),
+    default=st.session_state["starred_crypto"],
+    key="sb_starred_crypto"
+)
+st.session_state["starred_crypto"] = starred_crypto_selected
 
-    crypto_watchlist_options = [
-        "BTC-USD", "ETH-USD", "SOL-USD", "O40092-USD", "BNB-USD", "XRP-USD", 
-        "ADA-USD", "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD", "SUI-USD", "NEAR-USD"
-    ]
-    starred_crypto_selected = st.sidebar.multiselect(
-        "Star Favorite Crypto",
-        options=sorted(list(set(crypto_watchlist_options + st.session_state["starred_crypto"]))),
-        default=st.session_state["starred_crypto"],
-        key="sb_starred_crypto"
-    )
-    st.session_state["starred_crypto"] = starred_crypto_selected
-
-    st.sidebar.markdown("---")
-
-    with st.sidebar.expander("📖 Indicator Cheat Sheet (Beginner Friendly)", expanded=False):
-        st.markdown("""
-        * **RSI (Relative Strength Index):** Measures speed of price changes (0–100).
-            * `>70`: **Overbought** (Price ran up too fast, potential pullback ahead).
-            * `<30`: **Oversold** (Price dropped too hard, potential bargain bounce).
-        * **VWAP (Volume-Weighted Average Price):** The average price paid by big institutions throughout the day.
-            * Price **above VWAP** = Buyers are in control (Bullish).
-            * Price **below VWAP** = Sellers are in control (Bearish).
-        * **SMA 20 & 50 (Simple Moving Averages):** Smooth lines showing 20-day or 50-day average price trends.
-        * **Bollinger Bands (%B):** Volatility envelopes around price. Touching upper band = high; lower band = low.
-        * **MACD Hist (Histogram):** Shows whether buying or selling momentum is speeding up or slowing down.
-        * **ATR (Average True Range):** The expected daily dollar swing size (helps set realistic stop losses).
-        * **RVOL (Relative Volume):** Compares today's volume to normal volume (`>1.5x` = institutional activity).
-        """)
-else:
-    timeframe = "1y"  # Default fallback for technical engines if referenced
-    st.sidebar.markdown("### 🏠 Property Scout Active")
-    st.sidebar.info("Stock & Crypto Watchlists hidden while evaluating real estate assets.")
+st.sidebar.markdown("---")
+with st.sidebar.expander("📖 Indicator Cheat Sheet (Beginner Friendly)", expanded=False):
+    st.markdown("""
+    * **RSI (Relative Strength Index):** Measures speed of price changes (0–100).
+        * `>70`: **Overbought** (Price ran up too fast, potential pullback ahead).
+        * `<30`: **Oversold** (Price dropped too hard, potential bargain bounce).
+    * **VWAP (Volume-Weighted Average Price):** The average price paid by big institutions throughout the day.
+        * Price **above VWAP** = Buyers are in control (Bullish).
+        * Price **below VWAP** = Sellers are in control (Bearish).
+    * **SMA 20 & 50 (Simple Moving Averages):** Smooth lines showing 20-day or 50-day average price trends.
+    * **Bollinger Bands (%B):** Volatility envelopes around price. Touching upper band = high; lower band = low.
+    * **MACD Hist (Histogram):** Shows whether buying or selling momentum is speeding up or slowing down.
+    * **ATR (Average True Range):** The expected daily dollar swing size (helps set realistic stop losses).
+    * **RVOL (Relative Volume):** Compares today's volume to normal volume (`>1.5x` = institutional activity).
+    """)
 
 # ==============================================================================
 # SECTION 3: SHARED ANALYTICAL & COMPUTATIONAL ENGINES
 # ==============================================================================
+def safe_format(val, fmt="{:,.2f}", default="N/A"):
+    """Safely formats numerical values without failing on NaN or None."""
+    if val is None or pd.isna(val) or np.isnan(val):
+        return default
+    return fmt.format(val)
+
 def compute_all_indicators(df):
-    """Calculates SMA, VWAP, RSI, Bollinger Bands, MACD, ATR, and RVOL metrics."""
+    """Cleanly computes technical indicators handling yfinance MultiIndex columns and NaNs."""
+    if df is None or df.empty:
+        return pd.DataFrame()
+        
     df = df.copy()
-    
-    df["SMA_20"] = df["Close"].rolling(window=20).mean()
-    df["SMA_50"] = df["Close"].rolling(window=50).mean()
-    
-    tp = (df["High"] + df["Low"] + df["Close"]) / 3
-    df["VWAP"] = (tp * df["Volume"]).cumsum() / df["Volume"].cumsum()
-    
+
+    # Flatten MultiIndex columns if present (from recent yfinance API updates)
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
+    # Ensure required columns exist and are numeric
+    for col in ["Open", "High", "Low", "Close", "Volume"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+            
+    df = df.dropna(subset=["Close", "High", "Low", "Volume"])
+    if len(df) < 5:
+        return df
+
+    # SMA Calculations
+    df["SMA_20"] = df["Close"].rolling(window=min(20, len(df)), min_periods=1).mean()
+    df["SMA_50"] = df["Close"].rolling(window=min(50, len(df)), min_periods=1).mean()
+
+    # VWAP Calculation
+    tp = (df["High"] + df["Low"] + df["Close"]) / 3.0
+    v = df["Volume"].replace(0, np.nan).fillna(1)
+    df["VWAP"] = (tp * v).cumsum() / v.cumsum()
+
+    # RSI Calculation
     delta = df["Close"].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    df["RSI"] = 100 - (100 / (1 + rs))
-    df["Overbought (70)"] = 70
-    df["Oversold (30)"] = 30
-    
-    std_20 = df["Close"].rolling(window=20).std()
-    df["BB_Upper"] = df["SMA_20"] + (std_20 * 2)
-    df["BB_Lower"] = df["SMA_20"] - (std_20 * 2)
-    df["BB_Percent"] = (df["Close"] - df["BB_Lower"]) / (df["BB_Upper"] - df["BB_Lower"])
+    gain = delta.where(delta > 0, 0.0)
+    loss = -delta.where(delta < 0, 0.0)
+    avg_gain = gain.rolling(window=14, min_periods=1).mean()
+    avg_loss = loss.rolling(window=14, min_periods=1).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    df["RSI"] = 100.0 - (100.0 / (1.0 + rs))
+    df["RSI"] = df["RSI"].fillna(50.0)
+    df["Overbought (70)"] = 70.0
+    df["Oversold (30)"] = 30.0
+
+    # Bollinger Bands
+    std_20 = df["Close"].rolling(window=20, min_periods=1).std().fillna(0)
+    df["BB_Upper"] = df["SMA_20"] + (std_20 * 2.0)
+    df["BB_Lower"] = df["SMA_20"] - (std_20 * 2.0)
+    bb_denom = (df["BB_Upper"] - df["BB_Lower"]).replace(0, np.nan)
+    df["BB_Percent"] = (df["Close"] - df["BB_Lower"]) / bb_denom
     df["BB_Width"] = (df["BB_Upper"] - df["BB_Lower"]) / df["SMA_20"]
-    
+
+    # MACD Calculation
     ema_12 = df["Close"].ewm(span=12, adjust=False).mean()
     ema_26 = df["Close"].ewm(span=26, adjust=False).mean()
     df["MACD"] = ema_12 - ema_26
     df["MACD_Signal"] = df["MACD"].ewm(span=9, adjust=False).mean()
     df["MACD_Hist"] = df["MACD"] - df["MACD_Signal"]
-    
+
+    # ATR Calculation
     high_low = df["High"] - df["Low"]
-    high_close = np.abs(df["High"] - df["Close"].shift())
-    low_close = np.abs(df["Low"] - df["Close"].shift())
-    ranges = pd.concat([high_low, high_close, low_close], axis=1)
-    df["ATR"] = np.max(ranges, axis=1).rolling(14).mean()
-    df["RVOL"] = df["Volume"] / df["Volume"].rolling(20).mean()
-    
+    high_close = (df["High"] - df["Close"].shift(1)).abs()
+    low_close = (df["Low"] - df["Close"].shift(1)).abs()
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    df["ATR"] = tr.rolling(window=14, min_periods=1).mean()
+
+    # RVOL Calculation
+    vol_sma = df["Volume"].rolling(window=20, min_periods=1).mean().replace(0, np.nan)
+    df["RVOL"] = (df["Volume"] / vol_sma).fillna(1.0)
+
     return df
 
 def generate_predictive_model(df, forecast_days=10):
     """Generates 10-period forecasted price path with ATR-based volatility bands."""
     latest = df.iloc[-1]
     close = latest["Close"]
-    atr = latest["ATR"] if pd.notnull(latest["ATR"]) else close * 0.03
-    rsi = latest["RSI"] if pd.notnull(latest["RSI"]) else 50
-    macd_hist = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
-    vwap = latest["VWAP"] if pd.notnull(latest["VWAP"]) else close
+    atr = latest["ATR"] if pd.notnull(latest.get("ATR")) and latest["ATR"] > 0 else close * 0.03
+    rsi = latest["RSI"] if pd.notnull(latest.get("RSI")) else 50.0
+    macd_hist = latest["MACD_Hist"] if pd.notnull(latest.get("MACD_Hist")) else 0.0
+    vwap = latest["VWAP"] if pd.notnull(latest.get("VWAP")) else close
+
     recent_closes = df["Close"].tail(14).values
     x = np.arange(len(recent_closes))
-    slope, _ = np.polyfit(x, recent_closes, 1)
+    if len(recent_closes) > 1:
+        slope, _ = np.polyfit(x, recent_closes, 1)
+    else:
+        slope = 0.0
+
     momentum_modifier = 1.0
     if macd_hist > 0:
         momentum_modifier += 0.25
     else:
         momentum_modifier -= 0.25
+
     if rsi > 70:
         momentum_modifier -= 0.4
     elif rsi < 30:
         momentum_modifier += 0.4
+
     if close > vwap:
         momentum_modifier += 0.15
     else:
         momentum_modifier -= 0.15
+
     daily_vector = (slope * 0.5) + (macd_hist * 0.15 * momentum_modifier)
     last_date = df.index[-1]
     future_dates = [last_date + timedelta(days=i + 1) for i in range(forecast_days)]
+
     projected_prices = []
     upper_confidence = []
     lower_confidence = []
     curr_price = close
+
     for i in range(1, forecast_days + 1):
         curr_price += daily_vector
         projected_prices.append(curr_price)
         confidence_spread = atr * np.sqrt(i) * 0.5
         upper_confidence.append(curr_price + confidence_spread)
         lower_confidence.append(curr_price - confidence_spread)
+
     forecast_df = pd.DataFrame(
         {
             "Predicted Path": projected_prices,
@@ -259,9 +270,12 @@ def generate_predictive_model(df, forecast_days=10):
         },
         index=future_dates,
     )
-    buy_target = min(close, latest["BB_Lower"] if pd.notnull(latest["BB_Lower"]) else close)
+
+    bb_lower = latest.get("BB_Lower") if pd.notnull(latest.get("BB_Lower")) else close
+    buy_target = min(close, bb_lower)
     sell_target = max(projected_prices[-1], close + (2.0 * atr))
     stop_loss = buy_target - (1.5 * atr)
+
     return forecast_df, buy_target, sell_target, stop_loss, daily_vector
 
 def analyze_headline_sentiment(title):
@@ -300,7 +314,7 @@ def fetch_multi_source_news(ticker_name):
                 link = item.get("link") or content.get("link")
                 if not link and "clickThroughUrl" in content and content["clickThroughUrl"]:
                     link = content["clickThroughUrl"].get("url")
-                
+
                 pub_time = content.get("pubDate") or item.get("providerPublishTime")
                 date_str = datetime.now().strftime("%m/%d/%y")
                 if pub_time:
@@ -342,7 +356,7 @@ def fetch_multi_source_news(ticker_name):
                     t_date = item.find('pubDate')
                     title = t_title.text if t_title is not None else ""
                     link = t_link.text if t_link is not None else ""
-                    
+
                     date_str = datetime.now().strftime("%m/%d/%y")
                     if t_date is not None and t_date.text:
                         try:
@@ -365,7 +379,7 @@ def render_news_feed(ticker_obj, ticker_name):
     """Renders recent news headlines with publication dates formatted in (MM/DD/YY)."""
     st.markdown("---")
     st.header(f"📰 Recent Market News & Headline Sentiment ({ticker_name})")
-    
+
     articles = fetch_multi_source_news(ticker_name)
     if articles:
         seen_titles = set()
@@ -374,7 +388,7 @@ def render_news_feed(ticker_obj, ticker_name):
             if art["title"] in seen_titles:
                 continue
             seen_titles.add(art["title"])
-            
+
             sentiment_tag = analyze_headline_sentiment(art["title"])
             st.markdown(
                 f"{sentiment_tag} **[{art['title']}]({art['link']})** — *{art['publisher']}* ({art['date']})"
@@ -387,19 +401,24 @@ def render_news_feed(ticker_obj, ticker_name):
 
 def render_plot_with_zoom(df_chart, columns_to_plot, title, y_title, key_prefix):
     """Renders Plotly charts with zoom buttons."""
+    if df_chart is None or df_chart.empty:
+        st.info("Insufficient data available to render chart.")
+        return
+
     if key_prefix not in st.session_state:
         st.session_state[key_prefix] = len(df_chart)
     cur_window = st.session_state[key_prefix]
     col_chart, col_zoom = st.columns([12, 1])
-    
+
     with col_zoom:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        if st.button("➕", key=f"{key_prefix}_zoom_in", help="Zoom In (Fewer Periods)"):
+        if st.button("➕", key=f"{key_prefix}_zoom_in", help="Zoom In"):
             st.session_state[key_prefix] = max(10, int(cur_window * 0.75))
             st.rerun()
-        if st.button("➖", key=f"{key_prefix}_zoom_out", help="Zoom Out (More Periods)"):
+        if st.button("➖", key=f"{key_prefix}_zoom_out", help="Zoom Out"):
             st.session_state[key_prefix] = min(len(df_chart), int(cur_window * 1.35))
             st.rerun()
+
     sliced_df = df_chart.tail(st.session_state[key_prefix])
     fig = go.Figure()
     for col in columns_to_plot:
@@ -451,111 +470,137 @@ def render_trading_strategies_guide():
         """)
 
 def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
-    """Renders comprehensive quantitative dashboard."""
+    """Renders robust quantitative dashboard with verified metrics."""
+    if df is None or df.empty or len(df) < 2:
+        st.error(f"Not enough data available to render dashboard for **{ticker_name}**.")
+        return
+
     latest = df.iloc[-1]
     prev = df.iloc[-2]
-    fmt = "{:,.3f}" if asset_type == "Crypto" else "{:,.2f}"
+    fmt = "{:,.4f}" if (asset_type == "Crypto" and latest["Close"] < 1.0) else ("{:,.3f}" if asset_type == "Crypto" else "{:,.2f}")
+
     forecast_df, buy_target, sell_target, stop_loss, daily_vector = generate_predictive_model(df)
-    
+
+    curr_price_val = latest["Close"]
+    prev_price_val = prev["Close"]
+    price_change = curr_price_val - prev_price_val if pd.notnull(prev_price_val) else 0.0
+
     c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.metric("Current Price", f"${fmt.format(latest['Close'])}", f"{fmt.format(latest['Close']-prev['Close'])}")
-    c2.metric("VWAP (Inst. Benchmark)", f"${fmt.format(latest['VWAP'])}" if pd.notnull(latest["VWAP"]) else "N/A")
-    c3.metric("14-Period RSI", f"{latest['RSI']:.1f}" if pd.notnull(latest["RSI"]) else "N/A")
-    c4.metric("Bollinger %B", f"{latest['BB_Percent']:.2f}" if pd.notnull(latest["BB_Percent"]) else "N/A")
-    c5.metric("RVOL (Volume Multiplier)", f"{latest['RVOL']:.2f}x" if pd.notnull(latest["RVOL"]) else "N/A")
-    c6.metric("14-Period ATR (Daily Range)", f"${fmt.format(latest['ATR'])}" if pd.notnull(latest["ATR"]) else "N/A")
+    c1.metric("Current Price", safe_format(curr_price_val, f"${fmt}"), safe_format(price_change, f"{fmt}"))
+    c2.metric("VWAP (Inst. Benchmark)", safe_format(latest.get("VWAP"), f"${fmt}"))
+    c3.metric("14-Period RSI", safe_format(latest.get("RSI"), "{:.1f}"))
+    c4.metric("Bollinger %B", safe_format(latest.get("BB_Percent"), "{:.2f}"))
+    c5.metric("RVOL (Volume Multiplier)", safe_format(latest.get("RVOL"), "{:.2f}x"))
+    c6.metric("14-Period ATR (Daily Range)", safe_format(latest.get("ATR"), f"${fmt}"))
 
     st.subheader("🚦 Actionable Trade Recommendation")
     bull_points = 0
     bear_points = 0
-    if latest["Close"] > latest["VWAP"]:
+
+    if pd.notnull(latest.get("VWAP")) and curr_price_val > latest["VWAP"]:
         bull_points += 1
     else:
         bear_points += 1
-    if latest["RSI"] < 40:
+
+    rsi_val = latest.get("RSI", 50.0)
+    if rsi_val < 40:
         bull_points += 2
-    elif latest["RSI"] > 70:
+    elif rsi_val > 70:
         bear_points += 2
-    if latest["MACD_Hist"] > 0:
+
+    macd_val = latest.get("MACD_Hist", 0.0)
+    if macd_val > 0:
         bull_points += 1
     else:
         bear_points += 1
-    if latest["Close"] > latest["SMA_20"]:
+
+    if pd.notnull(latest.get("SMA_20")) and curr_price_val > latest["SMA_20"]:
         bull_points += 1
     else:
         bear_points += 1
+
     if bull_points >= 4:
         st.success("🟢 **EXECUTIVE ACTION: BUY / ACCUMULATE NOW**\n\nStrong confluence of bullish signals.")
     elif bear_points >= 4:
         st.error("🔴 **EXECUTIVE ACTION: SELL / TAKE PROFITS NOW**\n\nHeavy overhead resistance detected.")
     else:
         st.warning("🟡 **EXECUTIVE ACTION: WAIT / HOLD (NO CLEAR EDGE RIGHT NOW)**\n\nIndicators show a neutral consolidation.")
+
     lean_direction = "LONG (BUY)" if bull_points >= bear_points else "SHORT (SELL)"
     lean_color = "🟢" if "LONG" in lean_direction else "🔴"
-    curr_price = latest["Close"]
-    atr_val = latest["ATR"] if pd.notnull(latest["ATR"]) else curr_price * 0.03
+
+    atr_val = latest.get("ATR") if pd.notnull(latest.get("ATR")) and latest["ATR"] > 0 else curr_price_val * 0.03
+
     if "LONG" in lean_direction:
         entry_target = buy_target
         exit_target = sell_target
         sl_price = stop_loss
-        risk_pct = max(0.1, abs((entry_target - sl_price) / entry_target) * 100)
-        reward_pct = max(0.1, abs((exit_target - entry_target) / entry_target) * 100)
+        risk_pct = max(0.1, abs((entry_target - sl_price) / entry_target) * 100) if entry_target > 0 else 0
+        reward_pct = max(0.1, abs((exit_target - entry_target) / entry_target) * 100) if entry_target > 0 else 0
     else:
-        entry_target = curr_price
+        entry_target = curr_price_val
         exit_target = buy_target
-        sl_price = curr_price + (1.5 * atr_val)
-        risk_pct = max(0.1, abs((sl_price - entry_target) / entry_target) * 100)
-        reward_pct = max(0.1, abs((entry_target - exit_target) / entry_target) * 100)
+        sl_price = curr_price_val + (1.5 * atr_val)
+        risk_pct = max(0.1, abs((sl_price - entry_target) / entry_target) * 100) if entry_target > 0 else 0
+        reward_pct = max(0.1, abs((entry_target - exit_target) / entry_target) * 100) if entry_target > 0 else 0
+
     with st.container():
         st.markdown(f"#### {lean_color} **If You Had to Act: LEAN {lean_direction}**")
         m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-        m_col1.metric("Execution Target Price", f"${fmt.format(entry_target)}")
-        m_col2.metric("Take-Profit Target", f"${fmt.format(exit_target)}")
-        m_col3.metric("Correlating Stop-Loss", f"${fmt.format(sl_price)}")
+        m_col1.metric("Execution Target Price", safe_format(entry_target, f"${fmt}"))
+        m_col2.metric("Take-Profit Target", safe_format(exit_target, f"${fmt}"))
+        m_col3.metric("Correlating Stop-Loss", safe_format(sl_price, f"${fmt}"))
         m_col4.metric("Trade Risk Percentage", f"{risk_pct:.2f}%", f"Reward: +{reward_pct:.2f}%")
+
     render_trading_strategies_guide()
-    
+
+    plot_df = df[["Close", "VWAP", "BB_Upper", "BB_Lower"]].dropna(how="all")
     render_plot_with_zoom(
-        df[["Close", "VWAP", "BB_Upper", "BB_Lower"]].dropna(),
+        plot_df,
         ["Close", "VWAP", "BB_Upper", "BB_Lower"],
         f"Price Action vs. VWAP & Volatility Bands ({ticker_name})",
         "Price ($)",
         key_prefix=f"{ticker_name}_vwap"
     )
+
+    rsi_df = df[["RSI", "Overbought (70)", "Oversold (30)"]].dropna(how="all")
     render_plot_with_zoom(
-        df[["RSI", "Overbought (70)", "Oversold (30)"]].dropna(),
+        rsi_df,
         ["RSI", "Overbought (70)", "Oversold (30)"],
         "RSI Momentum & Overbought/Oversold Bounds",
         "RSI Score",
         key_prefix=f"{ticker_name}_rsi"
     )
+
     st.subheader("MACD Momentum Acceleration")
     macd_df = df[["MACD_Hist"]].dropna().reset_index()
-    macd_df["Color"] = np.where(macd_df["MACD_Hist"] >= 0, "Bullish (Green)", "Bearish (Red)")
-    macd_chart = (
-        alt.Chart(macd_df)
-        .mark_bar()
-        .encode(
-            x=alt.X("Date:T", title="Date"),
-            y=alt.Y("MACD_Hist:Q", title="MACD Histogram"),
-            color=alt.Color(
-                "Color:N",
-                scale=alt.Scale(domain=["Bullish (Green)", "Bearish (Red)"], range=["#22C55E", "#EF4444"]),
-                legend=alt.Legend(title="Momentum"),
-            ),
+    if not macd_df.empty:
+        macd_df["Color"] = np.where(macd_df["MACD_Hist"] >= 0, "Bullish (Green)", "Bearish (Red)")
+        date_col = macd_df.columns[0]
+        macd_chart = (
+            alt.Chart(macd_df)
+            .mark_bar()
+            .encode(
+                x=alt.X(f"{date_col}:T", title="Date"),
+                y=alt.Y("MACD_Hist:Q", title="MACD Histogram"),
+                color=alt.Color(
+                    "Color:N",
+                    scale=alt.Scale(domain=["Bullish (Green)", "Bearish (Red)"], range=["#22C55E", "#EF4444"]),
+                    legend=alt.Legend(title="Momentum"),
+                ),
+            )
+            .properties(height=220)
         )
-        .properties(height=220)
-    )
-    st.altair_chart(macd_chart, use_container_width=True)
-    
+        st.altair_chart(macd_chart, use_container_width=True)
+
     st.markdown("---")
     st.header("🔮 10-Period Predictive Trajectory & Target Levels")
     t1, t2, t3, t4 = st.columns(4)
-    t1.metric("Optimal Buy Target", f"${fmt.format(buy_target)}")
-    t2.metric("Take Profit Target", f"${fmt.format(sell_target)}")
-    t3.metric("Recommended Stop Loss", f"${fmt.format(stop_loss)}")
-    t4.metric("Projected Change Per Period", f"${fmt.format(daily_vector)}/period")
-    
+    t1.metric("Optimal Buy Target", safe_format(buy_target, f"${fmt}"))
+    t2.metric("Take Profit Target", safe_format(sell_target, f"${fmt}"))
+    t3.metric("Recommended Stop Loss", safe_format(stop_loss, f"${fmt}"))
+    t4.metric("Projected Change Per Period", f"{safe_format(daily_vector, f'${fmt}')}/period")
+
     render_plot_with_zoom(
         forecast_df,
         ["Predicted Path", "Upper Target (ATR)", "Lower Support (ATR)"],
@@ -563,7 +608,7 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
         "Price ($)",
         key_prefix=f"{ticker_name}_forecast"
     )
-    
+
     st.markdown("---")
     st.header("📋 Financial Statements & Fundamental Overview")
     if asset_type == "Stock":
@@ -600,24 +645,25 @@ def render_full_dashboard(df, ticker_name, asset_type, ticker_obj):
                     st.subheader("Income Statement ($ Millions)")
                     items_to_show = ["Total Revenue", "Gross Profit", "Operating Income", "Net Income"]
                     existing_items = [item for item in items_to_show if item in income_stmt.index]
-                    df_inc = income_stmt.loc[existing_items] / 1e6
-                    df_inc.columns = [col.strftime("%Y") if hasattr(col, "strftime") else col for col in df_inc.columns]
-                    st.dataframe(df_inc.style.format("${:,.1f}M"), use_container_width=True)
+                    if existing_items:
+                        df_inc = income_stmt.loc[existing_items] / 1e6
+                        df_inc.columns = [col.strftime("%Y") if hasattr(col, "strftime") else str(col) for col in df_inc.columns]
+                        st.dataframe(df_inc.style.format("${:,.1f}M"), use_container_width=True)
                 with col_f2:
                     st.subheader("Cash Flow Statement ($ Millions)")
                     cf_items = ["Operating Cash Flow", "Capital Expenditures", "Free Cash Flow"]
                     existing_cf = [item for item in cf_items if item in cash_flow.index]
                     if existing_cf:
                         df_cf = cash_flow.loc[existing_cf] / 1e6
-                        df_cf.columns = [col.strftime("%Y") if hasattr(col, "strftime") else col for col in df_cf.columns]
+                        df_cf.columns = [col.strftime("%Y") if hasattr(col, "strftime") else str(col) for col in df_cf.columns]
                         st.dataframe(df_cf.style.format("${:,.1f}M"), use_container_width=True)
         except Exception:
             st.info("Financial statements not available for this ticker.")
-    
+
     render_news_feed(ticker_obj, ticker_name)
 
 # ==============================================================================
-# REAL-TIME QUANTITATIVE SCREENER FUNCTIONS WITH INTERACTIVE FAVS
+# REAL-TIME QUANTITATIVE SCREENER FUNCTIONS
 # ==============================================================================
 @st.cache_data(ttl=300)
 def fetch_live_stock_quant_picks():
@@ -629,44 +675,44 @@ def fetch_live_stock_quant_picks():
         "NKE", "LLY", "AVGO", "CSCO", "PEP", "TMO", "ACN", "MCD", "WAL", 
         "WFC", "C", "MS", "GS", "TXN", "QCOM", "AMAT", "MU", "SNOW", "SHOP"
     ]
-    
     long_candidates = []
     short_candidates = []
-    
+
     for t in candidate_universe:
         try:
             tk = yf.Ticker(t)
             hist = tk.history(period="2mo")
-            if not hist.empty and len(hist) > 20:
+            if not hist.empty and len(hist) > 10:
                 df = compute_all_indicators(hist)
+                if df.empty:
+                    continue
                 latest = df.iloc[-1]
                 cp = latest["Close"]
-                vwap = latest["VWAP"] if pd.notnull(latest["VWAP"]) else cp
-                rsi = latest["RSI"] if pd.notnull(latest["RSI"]) else 50.0
-                macd_h = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
-                rvol = latest["RVOL"] if pd.notnull(latest["RVOL"]) else 1.0
-                atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.03
-                bb_lower = latest["BB_Lower"] if pd.notnull(latest["BB_Lower"]) else cp
-                
+                vwap = latest["VWAP"] if pd.notnull(latest.get("VWAP")) else cp
+                rsi = latest["RSI"] if pd.notnull(latest.get("RSI")) else 50.0
+                macd_h = latest["MACD_Hist"] if pd.notnull(latest.get("MACD_Hist")) else 0
+                rvol = latest["RVOL"] if pd.notnull(latest.get("RVOL")) else 1.0
+                atr = latest["ATR"] if pd.notnull(latest.get("ATR")) and latest["ATR"] > 0 else cp * 0.03
+                bb_lower = latest["BB_Lower"] if pd.notnull(latest.get("BB_Lower")) else cp
+
                 atr_ratio = atr / cp if cp > 0 else 0.03
                 est_days = int(max(5, min(30, round(2.0 / atr_ratio))))
                 hold_horizon = f"{est_days - 2}–{est_days + 3} Trading Days"
-                
+
                 if cp >= (vwap * 0.985) and rsi < 68 and macd_h > -0.05:
                     buy_target = min(cp, bb_lower) if (cp - bb_lower) > 0 else cp
                     target = buy_target + (2.0 * atr)
                     sl = buy_target - (1.5 * atr)
-                    risk_pct = max(0.1, abs((buy_target - sl) / buy_target) * 100)
-                    reward_pct = max(0.1, abs((target - buy_target) / buy_target) * 100)
+                    risk_pct = max(0.1, abs((buy_target - sl) / buy_target) * 100) if buy_target > 0 else 1.0
+                    reward_pct = max(0.1, abs((target - buy_target) / buy_target) * 100) if buy_target > 0 else 1.0
                     rr_ratio = reward_pct / risk_pct
-                    
+
                     score = (
                         (min(rvol, 3.0) / 3.0 * 30) +
                         (max(0, 70 - rsi) / 40 * 25) +
                         (min(rr_ratio, 3.0) / 3.0 * 25) +
                         (20 if macd_h > 0 else 5)
                     )
-                    
                     long_candidates.append({
                         "Ticker": t,
                         "Quant Score": round(score, 1),
@@ -687,17 +733,16 @@ def fetch_live_stock_quant_picks():
                 elif cp <= (vwap * 1.015) and macd_h < 0.05 and rsi > 32:
                     target = cp - (2.0 * atr)
                     sl = cp + (1.5 * atr)
-                    risk_pct = max(0.1, abs((sl - cp) / cp) * 100)
-                    reward_pct = max(0.1, abs((cp - target) / cp) * 100)
+                    risk_pct = max(0.1, abs((sl - cp) / cp) * 100) if cp > 0 else 1.0
+                    reward_pct = max(0.1, abs((cp - target) / cp) * 100) if cp > 0 else 1.0
                     rr_ratio = reward_pct / risk_pct
-                    
+
                     score = (
                         (min(rvol, 3.0) / 3.0 * 30) +
                         (max(0, rsi - 30) / 40 * 25) +
                         (min(rr_ratio, 3.0) / 3.0 * 25) +
                         (20 if macd_h < 0 else 5)
                     )
-                    
                     short_candidates.append({
                         "Ticker": t,
                         "Quant Score": round(score, 1),
@@ -717,12 +762,12 @@ def fetch_live_stock_quant_picks():
                     })
         except Exception:
             pass
-            
+
     df_long = pd.DataFrame(long_candidates)
     if not df_long.empty:
         df_long = df_long.sort_values(by=["_sort_score", "_return_pct"], ascending=[False, False]).head(10)
         df_long = df_long.drop(columns=["_sort_score", "_return_pct"])
-        
+
     df_short = pd.DataFrame(short_candidates)
     if not df_short.empty:
         df_short = df_short.sort_values(by=["_sort_score", "_return_pct"], ascending=[False, False]).head(10)
@@ -731,27 +776,25 @@ def fetch_live_stock_quant_picks():
 
 def render_interactive_screener_table(df, asset_type, key_id):
     """Renders interactive table with editable ⭐ Star checkboxes that sync with session_state."""
-    if df.empty:
+    if df is None or df.empty:
         st.info("No tickers match quantitative threshold requirements in live streaming data.")
         return
-
     ticker_col = "Ticker" if asset_type == "Stock" else "Crypto Pair"
     starred_list = st.session_state["starred_stocks"] if asset_type == "Stock" else st.session_state["starred_crypto"]
-    
+
     show_starred_only = st.checkbox("Show ⭐ Starred Only", key=f"filter_starred_{key_id}")
-    
+
     df_table = df.copy()
     df_table["⭐ Star"] = df_table[ticker_col].isin(starred_list)
-    
+
     cols = ["⭐ Star"] + [c for c in df_table.columns if c != "⭐ Star"]
     df_table = df_table[cols]
-    
+
     if show_starred_only:
         df_table = df_table[df_table["⭐ Star"] == True]
         if df_table.empty:
             st.info("No starred items in this list yet. Check the ⭐ Star box to add assets to your watchlist.")
             return
-
     edited_df = st.data_editor(
         df_table,
         column_config={
@@ -766,16 +809,16 @@ def render_interactive_screener_table(df, asset_type, key_id):
         use_container_width=True,
         key=f"editor_{key_id}"
     )
-    
+
     new_starred = edited_df[edited_df["⭐ Star"] == True][ticker_col].tolist()
     unstarred = edited_df[edited_df["⭐ Star"] == False][ticker_col].tolist()
-    
+
     updated_set = set(starred_list)
     for t in new_starred:
         updated_set.add(t)
     for t in unstarred:
         updated_set.discard(t)
-        
+
     if asset_type == "Stock":
         st.session_state["starred_stocks"] = list(updated_set)
     else:
@@ -785,10 +828,10 @@ def render_live_stock_screener():
     st.markdown("---")
     st.header("🎯 Top 10 Quantitative Stock Trade Recommendations")
     st.caption("Ranked by highest probability of execution and optimal risk-reward potential using technical metrics.")
-    
+
     with st.spinner("Scanning equity streams & computing quantitative factor rankings..."):
         df_stock_longs, df_stock_shorts = fetch_live_stock_quant_picks()
-    
+
     tab_s_long, tab_s_short = st.tabs(["🟢 Top 10 Stock Longs", "🔴 Top 10 Stock Shorts"])
     with tab_s_long:
         render_interactive_screener_table(df_stock_longs, "Stock", "stock_longs")
@@ -798,7 +841,7 @@ def render_live_stock_screener():
 @st.cache_data(ttl=180)
 def fetch_live_crypto_quant_picks():
     crypto_universe = [
-        "BTC-USD", "ETH-USD", "SOL-USD", "O40092-USD", "BNB-USD", "XRP-USD", 
+        "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", 
         "ADA-USD", "DOGE-USD", "AVAX-USD", "LINK-USD", "DOT-USD", "SUI-USD", "NEAR-USD"
     ]
     long_crypto = []
@@ -807,16 +850,18 @@ def fetch_live_crypto_quant_picks():
         try:
             tk = yf.Ticker(pair)
             hist = tk.history(period="1mo")
-            if not hist.empty and len(hist) > 14:
+            if not hist.empty and len(hist) > 10:
                 df = compute_all_indicators(hist)
+                if df.empty:
+                    continue
                 latest = df.iloc[-1]
                 cp = latest["Close"]
-                vwap = latest["VWAP"] if pd.notnull(latest["VWAP"]) else cp
-                rsi = latest["RSI"] if pd.notnull(latest["RSI"]) else 50.0
-                macd_h = latest["MACD_Hist"] if pd.notnull(latest["MACD_Hist"]) else 0
-                atr = latest["ATR"] if pd.notnull(latest["ATR"]) else cp * 0.04
+                vwap = latest["VWAP"] if pd.notnull(latest.get("VWAP")) else cp
+                rsi = latest["RSI"] if pd.notnull(latest.get("RSI")) else 50.0
+                macd_h = latest["MACD_Hist"] if pd.notnull(latest.get("MACD_Hist")) else 0
+                atr = latest["ATR"] if pd.notnull(latest.get("ATR")) and latest["ATR"] > 0 else cp * 0.04
                 fmt = "${:,.4f}" if cp < 1.0 else "${:,.2f}"
-                
+
                 atr_ratio = atr / cp if cp > 0 else 0.04
                 est_days = int(max(3, min(21, round(1.5 / atr_ratio))))
                 hold_horizon = f"{est_days - 1}–{est_days + 3} Days"
@@ -867,175 +912,32 @@ def render_live_crypto_screener():
         render_interactive_screener_table(df_crypto_shorts, "Crypto", "crypto_shorts")
 
 # ==============================================================================
-# REAL ESTATE COMPUTATIONAL ENGINE & HISTORICAL/PROJECTED PREDICTIVE MODEL
+# SECTION 4: MAIN NAVIGATION TABS
 # ==============================================================================
-def compute_real_estate_valuation(address, purchase_price, intent, prop_type, school_rating, labor_cost_idx, dom_days, build_year):
-    """Calculates institutional valuation metrics, seller bottoms, bid ranges, closing costs, CapEx, and professional diligence factors."""
-    # Baseline market price derived from internet-grounded pricing models ($380-$480/sqft benchmark in South Loop/Dearborn Park)
-    base_market_price = purchase_price * 1.025
-    
-    # Lowest price seller would take calculated on DOM, list-to-sale ratio, and seller motivation
-    dom_discount = min(0.12, (dom_days / 120.0) * 0.08)
-    lowest_seller_price = base_market_price * (0.91 - dom_discount)
-    
-    # Recommended initial bid range based on investment intent & seller bottom
-    if intent == "Fix & Flip":
-        bid_low = lowest_seller_price * 0.94
-        bid_high = base_market_price * 0.90
-    elif intent == "Personal Residence (Primary Home)":
-        bid_low = lowest_seller_price * 1.01
-        bid_high = base_market_price * 0.98
-    else:
-        bid_low = lowest_seller_price * 0.97
-        bid_high = base_market_price * 0.95
-
-    # Closing Costs, Transfer Taxes, Escrow, and Lender Fees (2.5% to 4.0% depending on region/property type)
-    title_legal_lender_fees = purchase_price * 0.012
-    transfer_taxes = purchase_price * 0.015  # State/County/Municipal transfers (e.g. Cook County/Chicago tax structure)
-    escrow_prepaids = purchase_price * 0.008
-    total_closing_costs = title_legal_lender_fees + transfer_taxes + escrow_prepaids
-
-    # Dynamic Renovation & Rehab Estimate based on Age, Intent, Type, and Trade Labor Index
-    age = max(0, 2026 - build_year)
-    base_sqft_cost = 15.0 if age < 15 else (35.0 if age < 40 else 60.0)
-    
-    if intent == "Fix & Flip":
-        intent_mult = 1.6  # High-end finishes for maximum resale ARV
-    elif intent == "Short-Term Rental":
-        intent_mult = 1.3  # Furnishings, durable amenities & modern aesthetics
-    elif intent == "Personal Residence (Primary Home)":
-        intent_mult = 1.2  # Tailored owner comfort & energy upgrades
-    else:
-        intent_mult = 0.9  # Long-term tenant durability standard
-
-    type_mult = 1.0 if prop_type == "Single Family" else (1.4 if prop_type == "Multi-Family (2-4 Units)" else 1.8)
-    labor_mult = labor_cost_idx / 100.0
-    
-    rehab_low = purchase_price * (base_sqft_cost / 350.0) * intent_mult * type_mult * labor_mult * 0.75
-    rehab_high = rehab_low * 1.55
-
-    # Professional Diligence Factor Ratings
-    school_score = f"{school_rating}/10 ({'Top Tier' if school_rating>=8 else 'Moderate' if school_rating>=5 else 'Below Avg'})"
-    labor_availability = "Tight / High Cost" if labor_cost_idx > 110 else ("Balanced" if labor_cost_idx >= 95 else "Abundant / Low Cost")
-    tax_burden_pct = 2.15 if "CHICAGO" in address.upper() or "IL" in address.upper() else 1.45
-    annual_taxes = purchase_price * (tax_burden_pct / 100.0)
-    
-    zoning_permits = "Complex / Slow (Historic/HOA)" if prop_type in ["Multi-Family (2-4 Units)", "Commercial"] else "Standard Municipal"
-    insurance_risk = "Moderate (Urban/Wind/Water)" if "CHICAGO" in address.upper() else "Low/Standard"
-
-    return {
-        "market_price": base_market_price,
-        "lowest_seller_price": lowest_seller_price,
-        "bid_low": bid_low,
-        "bid_high": bid_high,
-        "total_closing_costs": total_closing_costs,
-        "rehab_low": rehab_low,
-        "rehab_high": rehab_high,
-        "school_score": school_score,
-        "labor_availability": labor_availability,
-        "tax_burden_pct": tax_burden_pct,
-        "annual_taxes": annual_taxes,
-        "zoning_permits": zoning_permits,
-        "insurance_risk": insurance_risk,
-    }
-
-def generate_40yr_hist_20yr_proj_housing_data(base_price):
-    """Generates 40-year historical dataset (1986–2026) and 20-year projection (2026–2046) for neighborhood comps."""
-    years_hist = np.arange(1986, 2027)
-    years_proj = np.arange(2027, 2047)
-    all_years = np.concatenate([years_hist, years_proj])
-    
-    # Historical inflation & housing growth modeling (including 2008 dip and post-2020 acceleration)
-    hist_factors = []
-    p = 1.0
-    for y in years_hist:
-        if y < 2000:
-            p *= 1.042
-        elif 2000 <= y <= 2006:
-            p *= 1.075
-        elif 2007 <= y <= 2011:
-            p *= 0.910  # Housing crash adjustment
-        elif 2012 <= y <= 2019:
-            p *= 1.051
-        elif 2020 <= y <= 2023:
-            p *= 1.092  # Post-COVID expansion
-        else:
-            p *= 1.038
-        hist_factors.append(p)
-    
-    # Normalize historical vector so 2026 matches exact calculated base price
-    hist_factors = np.array(hist_factors)
-    hist_prices = base_price * (hist_factors / hist_factors[-1])
-    
-    # Projected future factors (3.8% annual compound growth)
-    proj_prices = []
-    curr_p = base_price
-    for y in years_proj:
-        curr_p *= 1.038
-        proj_prices.append(curr_p)
-        
-    subject_trajectory = np.concatenate([hist_prices, np.array(proj_prices)])
-    
-    # Neighborhood Competitor Series Calculations
-    highest_home = subject_trajectory * 1.62
-    lowest_home = subject_trajectory * 0.48
-    avg_neighborhood = subject_trajectory * 0.94
-    avg_zipcode = subject_trajectory * 0.88
-    
-    comp1 = subject_trajectory * 1.25
-    comp2 = subject_trajectory * 1.10
-    comp3 = subject_trajectory * 0.98
-    comp4 = subject_trajectory * 0.82
-    comp5 = subject_trajectory * 0.68
-    
-    df_chart = pd.DataFrame(
-        {
-            "Year": all_years,
-            "Subject Property Trajectory": subject_trajectory,
-            "Highest Price Home in Neighborhood": highest_home,
-            "Lowest Price Home in Neighborhood": lowest_home,
-            "Overall Avg Neighborhood Price": avg_neighborhood,
-            "Avg Price Same ZIP Code Area": avg_zipcode,
-            "Avg Comp Home 1 (Upper Tier)": comp1,
-            "Avg Comp Home 2 (Mid-Upper)": comp2,
-            "Avg Comp Home 3 (Median)": comp3,
-            "Avg Comp Home 4 (Mid-Lower)": comp4,
-            "Avg Comp Home 5 (Entry Level)": comp5,
-        }
-    ).set_index("Year")
-    
-    return df_chart
-
-# ==============================================================================
-# SECTION 4: MAIN TABBED NAVIGATION
-# ==============================================================================
-tab_stocks, tab_crypto, tab_real_estate = st.tabs(
-    ["📊 Stock Scanner", "🪙 Crypto Scanner"]
-)
+tab_stocks, tab_crypto = st.tabs(["📊 Stock Scanner", "🪙 Crypto Scanner"])
 
 # ------------------------------------------------------------------------------
 # TAB 1: STOCK SCANNER
 # ------------------------------------------------------------------------------
 with tab_stocks:
-    st.session_state["active_tab"] = "stocks"
     st.subheader("📊 Quantitative Stock Analysis & Screener")
-    
+
     starred_stock_options = st.session_state["starred_stocks"]
     stock_options = ["NVDA", "AAPL", "VOO", "QQQ", "RUM"] + starred_stock_options
     stock_options = sorted(list(set(stock_options))) + ["Custom Ticker Input"]
-    
+
     stock_preset = st.selectbox(
         "Select Stock / Index (⭐ Watchlist Tickers Included)", 
         stock_options, 
         index=0,
         key="stock_preset_select"
     )
-    
+
     if stock_preset == "Custom Ticker Input":
         stock_ticker = st.text_input("Enter Stock Ticker", value="NVDA", key="stock_input").upper()
     else:
         stock_ticker = stock_preset
-    
+
     if stock_ticker:
         st_obj = yf.Ticker(stock_ticker)
         stock_data = st_obj.history(period=timeframe)
@@ -1044,32 +946,31 @@ with tab_stocks:
             render_full_dashboard(df_processed, stock_ticker, asset_type="Stock", ticker_obj=st_obj)
         else:
             st.error(f"Could not retrieve stock data for symbol: {stock_ticker}")
-    
+
     render_live_stock_screener()
 
 # ------------------------------------------------------------------------------
 # TAB 2: CRYPTO SCANNER
 # ------------------------------------------------------------------------------
 with tab_crypto:
-    st.session_state["active_tab"] = "crypto"
     st.subheader("🪙 Cryptocurrency Market Scanner")
-    
+
     starred_crypto_options = st.session_state["starred_crypto"]
-    crypto_options = ["BTC-USD", "ETH-USD", "SOL-USD", "O40092-USD"] + starred_crypto_options
+    crypto_options = ["BTC-USD", "ETH-USD", "SOL-USD"] + starred_crypto_options
     crypto_options = sorted(list(set(crypto_options))) + ["Custom Input"]
-    
+
     crypto_preset = st.selectbox(
         "Select Crypto Asset (⭐ Watchlist Tickers Included)", 
         crypto_options, 
         index=0,
         key="crypto_preset_select"
     )
-    
+
     if crypto_preset == "Custom Input":
         crypto_ticker = st.text_input("Custom Pair (e.g. ADA-USD)", value="ADA-USD", key="crypto_input").upper()
     else:
         crypto_ticker = crypto_preset
-        
+
     if crypto_ticker:
         cr_obj = yf.Ticker(crypto_ticker)
         crypto_data = cr_obj.history(period=timeframe)
@@ -1078,7 +979,15 @@ with tab_crypto:
             render_full_dashboard(df_crypto_processed, crypto_ticker, asset_type="Crypto", ticker_obj=cr_obj)
         else:
             st.error(f"Could not retrieve crypto data for pair: {crypto_ticker}.")
-            
+
     render_live_crypto_screener()
 
-
+# ==============================================================================
+# SECTION 5: FOOTER
+# ==============================================================================
+st.markdown("---")
+col_ft_left, col_ft_right = st.columns([4, 1])
+with col_ft_left:
+    st.caption("© 2026 Core Market Intelligence (CMI). All Quantitative Asset Management Engine Metrics.")
+with col_ft_right:
+    st.markdown(CMI_LOGO_SVG, unsafe_allow_html=True)
